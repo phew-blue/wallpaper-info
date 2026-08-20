@@ -19,6 +19,7 @@ func main() {
 	name := flag.String("name", "", "centered label (default: hostname; '-' to hide)")
 	out := flag.String("out", "", "write the result PNG here instead of setting the wallpaper (preview)")
 	watch := flag.Int("watch", 0, "refresh every N minutes (0 = run once)")
+	demo := flag.Bool("demo", false, "render synthetic sample data instead of this machine's facts (for docs)")
 	fontSpec := flag.String("font", "", "font family name or .ttf path (default: Open Sans if installed, else Segoe UI)")
 	accent := flag.String("accent", "", "accent colour hex (default #0092CA)")
 	secondary := flag.String("secondary", "", "secondary text colour hex (default #6A7078)")
@@ -64,6 +65,9 @@ func main() {
 	lastSig := ""
 	do := func() error {
 		info := Gather()
+		if *demo {
+			info = DemoInfo()
+		}
 		sig := info.Sig()
 		if *out == "" && sig == lastSig {
 			return nil // nothing changed: skip the render + wallpaper set
