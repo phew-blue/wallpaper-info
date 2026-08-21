@@ -10,3 +10,14 @@ font      = ""          # font family name or .ttf path; "" = Open Sans if insta
 accent    = "#0092CA"   # colour of the "user @ host" line and centered label
 secondary = "#6A7078"   # colour of the detail lines
 watch     = 0           # re-render every N minutes (0 = run once)
+
+# Preset id last applied from https://wallpaper-info.phew.blue/manifest.json.
+# Values from the preset are used only where you have not set them yourself:
+# defaults < preset < this file < command-line flags.
+preset = "phew-blue"
+
+[layout]
+# bottom-right (default) | bottom-left | top-right | top-left
+corner = "bottom-right"
+# Ordered subset of: user, os, uptime, cpu, ram, disk, nics, wan
+rows = ["user", "os", "uptime", "cpu", "ram", "disk", "nics", "wan"]

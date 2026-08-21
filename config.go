@@ -8,7 +8,15 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
+// Layout controls which rows appear and where the panel sits. Zero values mean "unset", so a
+// preset can supply them without overriding an explicit local choice.
+type Layout struct {
+	Corner string   `toml:"corner"` // bottom-right (default) | bottom-left | top-right | top-left
+	Rows   []string `toml:"rows"`   // ordered subset of user, os, uptime, cpu, ram, disk, nics, wan
+}
+
 // Config is the persisted settings. Flags override these at runtime; defaults are phew-blue.
+// Precedence, lowest to highest: defaults < preset < this file < explicit flags.
 type Config struct {
 	Base      string `toml:"base"`      // background image path ("" = current wallpaper)
 	Name      string `toml:"name"`      // centered label ("" = hostname, "-" = hide)
@@ -16,6 +24,8 @@ type Config struct {
 	Accent    string `toml:"accent"`    // hostname colour
 	Secondary string `toml:"secondary"` // detail-line colour
 	Watch     int    `toml:"watch"`     // refresh every N minutes (0 = once)
+	Preset    string `toml:"preset"`    // id of the last applied preset ("" = purely local config)
+	Layout    Layout `toml:"layout"`
 }
 
 func DefaultConfig() Config {
