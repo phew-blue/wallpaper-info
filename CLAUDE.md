@@ -58,8 +58,8 @@ Tag `v*` → `.github/workflows/release.yml` builds `wallpaper-info-windows-amd6
 - Win11 detection: the registry still reports "Windows 10" in `ProductName`; `osName()` rewrites it when `CurrentBuild >= 22000`
 - `skipNic()` filters virtual adapters (Hyper-V, VMware, WSL, Docker) — extend the list rather than special-casing callers
 - Public IP failures fall back to the last known value, then `"n/a"` — never block rendering on the network
-- **`docs/preview.png` must only ever be regenerated with `--demo`.** It was previously a real render leaking a WAN IP, full name, and LAN topology. Those blobs are still reachable in history (commits `f0a9e12`, `5486523`, `78fe820`) and **must be purged before the repo is made public** — see the plan's Task 2
-- The repo must be **public** for the installer to download release assets anonymously (no `gh` auth on provisioned machines). Keep secrets out accordingly
+- **`docs/preview.png` must only ever be regenerated with `--demo`.** It was previously a real render leaking a WAN IP, full name, and LAN topology. History was squashed and the GitHub repo deleted/recreated in Aug 2026 to purge it — branch rewrites alone were not enough, because tags and the `refs/pull/*` ref kept the old blobs fetchable. Never commit a render of a real machine
+- The repo is **public** so the installer can fetch release assets anonymously (no `gh` auth on provisioned machines). Keep secrets and real host data out accordingly
 - Config precedence is **defaults < preset < config file < explicit flags**; `flag.Visit` records which flags were explicit so `ApplyPreset` never overrides them
 - `Info.Sig()` is facts-only; `Info.SigWith(cfg)` adds preset + layout. `--watch`/`--tray` must use `SigWith`, or a preset switch renders nothing
 - Manifest/preset/background/update failures must always degrade (cache → local config), never fail a render

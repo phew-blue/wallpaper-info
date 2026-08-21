@@ -5,8 +5,9 @@ sets it as the Windows desktop wallpaper. Self-contained single binary — the f
 system (Open Sans if installed, else Segoe UI) and the background defaults to your current wallpaper,
 so it runs anywhere with no assets. Shows **specs, not live usage**.
 
-Bottom-right block: `user @ host`, OS, uptime, CPU (model + cores), RAM (total), disk (total),
-LAN IP, WAN IP. Optional centered label (defaults to the hostname).
+The info block shows `user @ host`, OS, uptime, CPU (model + cores), RAM (total), disk (total),
+per-NIC LAN IPs and the WAN IP. Which rows appear and which corner they sit in are configurable
+(bottom-right by default), as is an optional centered label (defaults to the hostname).
 
 ![preview](docs/preview.png)
 
@@ -53,7 +54,11 @@ cached copy is used, then local config. A network failure never fails a render.
 ```powershell
 go build -o wallpaper-info.exe .
 ./wallpaper-info.exe            # composite onto current wallpaper, set it
+go test ./...                   # manifest, presets, config precedence, layout, version compare
 ```
+
+Non-Windows builds exist so development works anywhere, but off Windows only `--out` does
+anything useful — there is no wallpaper to set, no tray, and no self-update.
 
 ## Customisation
 

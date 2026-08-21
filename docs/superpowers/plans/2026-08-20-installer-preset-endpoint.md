@@ -161,6 +161,19 @@ topology. --demo makes doc screenshots reproducible and leak-free."
 
 ### Task 2: Purge the leaked preview from history and make the repo public
 
+> **Done, but not as written below.** Two assumptions in this task were wrong:
+> `git-filter-repo` is a Python program and this environment has no Python, and — more
+> importantly — rewriting branches would not have removed the leak from GitHub at all. Tags
+> `v0.1.0`/`v0.1.1` pointed into the leaked commits, a stale `docs/add-claude-md` branch still
+> held the file, and `refs/pull/1/head` keeps PR heads fetchable forever on a public repo.
+>
+> What was actually done: the 12 pre-feature commits were squashed into one clean root commit
+> with `git checkout --orphan`, the 13 feature commits were replayed onto it with
+> `git rebase --onto`, and the GitHub repo was **deleted and recreated public**, which is the
+> only step that reliably drops tags and PR refs. Verified from a fresh clone: all three blobs
+> absent, WAN IP absent from every blob. Releases v0.1.0/v0.1.1 were lost with the repo; they
+> are superseded by the installer flow. The steps below are kept for the record.
+
 **This task rewrites published history and changes repo visibility. Both are irreversible in practice. Get explicit confirmation from Rob immediately before running the force-push and the visibility flip — do not batch this task with others.**
 
 Three blobs must die: `185cddc3` (`f0a9e12`), `7447e6d4` (`5486523`), `b6f8f453` (`78fe820`).
