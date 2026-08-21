@@ -13,8 +13,9 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - name: Install Go + build (windows/amd64, static, no CGO)
-        # setup-go is flaky on this runner's NFS tool-cache, so fetch the toolchain straight to
-        # fast ephemeral RUNNER_TEMP. Latest stable Go builds a go-1.23 module fine.
+        # Fetch the toolchain directly rather than via setup-go: it behaves the same on
+        # GitHub-hosted and on a self-hosted pool set through vars.RUNNER, where setup-go
+        # is flaky against the NFS tool cache. Latest stable Go builds a go-1.23 module fine.
         run: |
           set -euo pipefail
           GO_VER="$(curl -fsSL 'https://go.dev/VERSION?m=text' | head -1)"
