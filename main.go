@@ -41,6 +41,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	// What the machine was wearing before this run, captured before --preset overwrites it: it
+	// is the only way to tell a preset *switch* (whose cached background is now stale) from a
+	// re-run of the preset already configured.
+	configuredPreset := cfg.Preset
+
 	// Flags override config only when explicitly set on the command line. The same pass records
 	// which flags were explicit, so a preset can fill everything else without clobbering them.
 	explicit := map[string]bool{}
@@ -90,7 +95,11 @@ func main() {
 			} else {
 				cfg = ApplyPreset(cfg, p, explicit)
 				client := &http.Client{Timeout: 60 * time.Second}
-				if !explicit["base"] && cfg.Base == "" {
+				// Re-pick the background when the preset changed: cfg.Base points at the
+				// *previous* preset's cached image, so keeping it leaves the machine wearing one
+				// preset's colours on another preset's wallpaper. The tray's ApplyPresetByID has
+				// always re-picked; this makes the CLI — and so the installer — match.
+				if !explicit["base"] && (cfg.Base == "" || configuredPreset != p.ID) {
 					if bg, ok := PickBackground(p.Backgrounds, ScreenWidth()); ok {
 						path, err := EnsureBackground(bg, m.Base, client)
 						if err != nil {
