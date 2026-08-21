@@ -37,6 +37,13 @@ SolidCompression=yes
 WizardStyle=modern
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayIcon={app}\{#MyAppExeName}
+; Every provisioned machine already runs a resident copy, and self-update runs this installer
+; while the tray process is alive. Windows will not overwrite a locked .exe, so without these
+; an upgrade silently does nothing at all. AppMutex matches InstanceMutexName in
+; instance_windows.go; PrepareToInstall below is the belt-and-braces force close.
+AppMutex=phew-blue-wallpaper-info
+CloseApplications=force
+RestartApplications=no
 
 [Files]
 Source: "wallpaper-info.exe"; DestDir: "{app}"; Flags: ignoreversion
@@ -60,6 +67,19 @@ Type: filesandordirs; Name: "{localappdata}\wallpaper-info"
 
 [Code]
 var PresetPage: TInputOptionWizardPage;
+
+// A resident tray/watch process holds our own .exe open. Restart Manager cannot reliably close
+// a tray app with no main window, and a silent install must never stop to ask, so terminate any
+// running copy before the file step. Returning '' means "carry on" — failing to kill is not a
+// reason to abort, the file step will report the real problem if one remains.
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var ResultCode: Integer;
+begin
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM {#MyAppExeName}', '',
+       SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Sleep(500); // let the handle actually drop before Setup opens the file for writing
+  Result := '';
+end;
 
 procedure InitializeWizard;
 begin

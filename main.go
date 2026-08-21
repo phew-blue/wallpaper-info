@@ -134,10 +134,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Past this point the process is resident, so drop a console Windows opened just for us
-	// (Startup shortcut, Explorer) and leave the user's own terminal alone.
+	// Past this point the process is resident, so: drop a console Windows opened just for us
+	// (Startup shortcut, Explorer) while leaving the user's own terminal alone, and hold the
+	// instance mutex so an installer can tell we are running and close us before replacing
+	// our own .exe.
 	if *tray || cfg.Watch > 0 {
 		DetachConsole()
+		HoldInstanceMutex()
 	}
 
 	if *tray {
