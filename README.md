@@ -46,6 +46,21 @@ A preset only fills settings you have not set yourself. Precedence is
 silently restyled. Presets are authored as `presets/*.toml` in this repo; tagging a
 release regenerates the published manifest.
 
+### Offline / removable media
+
+`--manifest` also accepts a **local path**, so a provisioning USB or an air-gapped
+machine needs no network at all:
+
+```powershell
+./wallpaper-info.exe --manifest E:\phew-blue\wallpaper-info\manifest.json --list-presets
+./wallpaper-info.exe --manifest E:\phew-blue\wallpaper-info\manifest.json --preset timeline-blue
+```
+
+Asset URLs in a local manifest are resolved **relative to the manifest**, so the stick
+works whether it mounts as `E:` or `F:`. Backgrounds are copied into the local cache
+rather than referenced in place, so the wallpaper keeps rendering once the stick is
+removed. Build one with `go run ./tools/manifest -local ...`.
+
 Everything about presets degrades safely: if the manifest is unreachable, the last
 cached copy is used, then local config. A network failure never fails a render.
 

@@ -85,7 +85,7 @@ func (a *App) ApplyPresetByID(id string) error {
 
 	a.Cfg = ApplyPreset(a.Cfg, p, a.Explicit)
 	if bg, ok := PickBackground(p.Backgrounds, ScreenWidth()); ok {
-		path, err := EnsureBackground(bg, &http.Client{Timeout: 60 * time.Second})
+		path, err := EnsureBackground(bg, m.Base, &http.Client{Timeout: 60 * time.Second})
 		if err != nil {
 			// A missing background is not fatal: LoadBase falls back to the current wallpaper.
 			fmt.Fprintln(os.Stderr, "wallpaper-info: background:", err)

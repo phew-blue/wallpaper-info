@@ -84,7 +84,7 @@ func TestEnsureBackgroundVerifiesSHA256(t *testing.T) {
 
 	t.Setenv("LOCALAPPDATA", t.TempDir())
 
-	path, err := EnsureBackground(Background{URL: srv.URL, SHA256: good}, srv.Client())
+	path, err := EnsureBackground(Background{URL: srv.URL, SHA256: good}, "", srv.Client())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +92,7 @@ func TestEnsureBackgroundVerifiesSHA256(t *testing.T) {
 		t.Error("cached file content does not match what was served")
 	}
 
-	if _, err := EnsureBackground(Background{URL: srv.URL, SHA256: "deadbeef"}, srv.Client()); err == nil {
+	if _, err := EnsureBackground(Background{URL: srv.URL, SHA256: "deadbeef"}, "", srv.Client()); err == nil {
 		t.Error("want an error when the sha256 does not match")
 	}
 	if _, err := os.Stat(BackgroundCachePath("deadbeef")); !os.IsNotExist(err) {
@@ -120,7 +120,7 @@ func TestEnsureBackgroundReusesCache(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	if _, err := EnsureBackground(Background{URL: srv.URL, SHA256: good}, srv.Client()); err != nil {
+	if _, err := EnsureBackground(Background{URL: srv.URL, SHA256: good}, "", srv.Client()); err != nil {
 		t.Fatal(err)
 	}
 }

@@ -91,7 +91,7 @@ func main() {
 				cfg = ApplyPreset(cfg, p, explicit)
 				if !explicit["base"] && cfg.Base == "" {
 					if bg, ok := PickBackground(p.Backgrounds, ScreenWidth()); ok {
-						path, err := EnsureBackground(bg, &http.Client{Timeout: 60 * time.Second})
+						path, err := EnsureBackground(bg, m.Base, &http.Client{Timeout: 60 * time.Second})
 						if err != nil {
 							fmt.Fprintln(os.Stderr, "wallpaper-info: background:", err)
 						} else {

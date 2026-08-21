@@ -14,7 +14,7 @@ A single Go binary (flat `package main`, no subdirectories) that composites a sy
 - `render.go` — drawing via `golang.org/x/image` (opentype); sizes are vw-relative to match the brand wallpaper's CSS (`.machine` = 1.6vw, tag strip = 0.72vw)
 - `wallpaper_windows.go` / `wallpaper_other.go` — `SystemParametersInfoW` set/get; non-Windows can only `--out` a PNG
 - `app.go` — `App` holds run-time state (config, manifest fetcher) so the tray, the watch loop, and one-shot runs all drive the same `RenderOnce`/`ApplyPresetByID`
-- `manifest.go` — fetches/parses the published catalogue; fresh cache → network → stale cache → give up. An unknown `schema` is ignored wholesale
+- `manifest.go` — fetches/parses the catalogue from http(s) **or a local path** (USB / air-gapped): fresh cache → network → stale cache → give up. Relative asset URLs resolve against the manifest's own location so removable media is drive-letter independent. An unknown `schema` is ignored wholesale
 - `preset.go` — applies a preset to `Config`, picks the nearest-resolution background, caches it content-addressed by sha256
 - `demo.go` — `DemoInfo()`, the synthetic facts behind `--demo`
 - `tray_windows.go` / `tray_other.go` — `getlantern/systray` tray icon (embedded `.ico`); non-Windows returns an error so the caller falls back to headless watch
