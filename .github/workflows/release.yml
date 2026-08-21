@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: home-ops # self-hosted runner in the home-ops cluster (not GitHub-hosted)
+    runs-on: ${{ vars.RUNNER || 'ubuntu-latest' }} # set the RUNNER variable to target a self-hosted pool
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - name: Install Go + build (windows/amd64, static, no CGO)
