@@ -7,7 +7,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"image/png"
 	"net/http"
 	"os"
 	"time"
@@ -25,6 +24,8 @@ func main() {
 	listPresets := flag.Bool("list-presets", false, "list presets available in the manifest and exit")
 	manifestURL := flag.String("manifest", "", "manifest URL (default "+DefaultManifestURL+")")
 	showVersion := flag.Bool("version", false, "print the version and exit")
+	tray := flag.Bool("tray", false, "run resident with a system-tray icon (Windows; implies --watch)")
+	update := flag.Bool("update", false, "download and install the latest release, then exit")
 	fontSpec := flag.String("font", "", "font family name or .ttf path (default: Open Sans if installed, else Segoe UI)")
 	accent := flag.String("accent", "", "accent colour hex (default #0092CA)")
 	secondary := flag.String("secondary", "", "secondary text colour hex (default #6A7078)")
@@ -111,62 +112,38 @@ func main() {
 		return
 	}
 
-	lastSig := ""
-	do := func() error {
-		info := Gather()
-		if *demo {
-			info = DemoInfo()
-		}
-		sig := info.SigWith(cfg)
-		if *out == "" && sig == lastSig {
-			return nil // nothing changed: skip the render + wallpaper set
-		}
-		label := cfg.Name
-		switch label {
-		case "":
-			label = info.Host // default: the hostname
-		case "-":
-			label = "" // explicitly hidden
-		}
-		bg, err := LoadBase(cfg.Base)
-		if err != nil {
-			return err
-		}
-		// An unknown corner falls back to the default rather than moving the panel somewhere odd.
-		corner, _ := ParseCorner(cfg.Layout.Corner)
-		img := Render(bg, info, RenderOpts{
-			Label:     label,
-			Font:      cfg.Font,
-			Accent:    cfg.Accent,
-			Secondary: cfg.Secondary,
-			Corner:    corner,
-			Rows:      cfg.Layout.Rows,
-		})
-		if *out != "" {
-			f, err := os.Create(*out)
-			if err != nil {
-				return err
-			}
-			defer f.Close()
-			return png.Encode(f, img)
-		}
-		if err := SetWallpaper(img); err != nil {
-			return err
-		}
-		lastSig = sig
-		return nil
+	app := &App{
+		Cfg:      cfg,
+		CfgPath:  cfgFile,
+		Demo:     *demo,
+		Out:      *out,
+		Explicit: explicit,
+		Fetcher:  NewManifestFetcher(*manifestURL),
 	}
 
-	if err := do(); err != nil {
+	if *update {
+		if err := CheckAndUpdate(app, true); err != nil {
+			fmt.Fprintln(os.Stderr, "wallpaper-info: update:", err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	if err := app.RenderOnce(false); err != nil {
 		fmt.Fprintln(os.Stderr, "wallpaper-info:", err)
 		os.Exit(1)
 	}
-	for cfg.Watch > 0 {
-		time.Sleep(time.Duration(cfg.Watch) * time.Minute)
-		if err := do(); err != nil {
-			fmt.Fprintln(os.Stderr, "wallpaper-info:", err)
+
+	if *tray {
+		// A shell that will not host a tray icon must not cost the machine its wallpaper:
+		// fall through to the headless watch loop instead of exiting.
+		if err := RunTray(app); err != nil {
+			fmt.Fprintln(os.Stderr, "wallpaper-info: tray unavailable, running headless:", err)
+		} else {
+			return
 		}
 	}
+	app.Watch()
 }
 
 // version is stamped at build time: -ldflags "-X main.version=$TAG". "dev" never self-updates.
