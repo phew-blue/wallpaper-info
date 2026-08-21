@@ -19,7 +19,8 @@ A single Go binary (flat `package main`, no subdirectories) that composites a sy
 - `demo.go` — `DemoInfo()`, the synthetic facts behind `--demo`
 - `tray_windows.go` / `tray_other.go` — `getlantern/systray` tray icon (embedded `.ico`); non-Windows returns an error so the caller falls back to headless watch
 - `update.go` + `update_windows.go` / `update_other.go` — `NeedsUpdate` version compare (platform-neutral, tested) and the silent installer hand-off
-- `presets/*.toml` — authored preset sources; `tools/manifest` turns them into the published `manifest.json`
+- `presets/*.toml` — authored preset sources (`background_set` lets a colour variant reuse another preset's images); `tools/manifest` turns them into the published `manifest.json` and stages the background assets
+- `backgrounds/<set>/<WxH>.png` — brand wallpapers vendored so a release is self-contained
 - `installer/wallpaper-info.iss` — per-user Inno Setup installer, compiled by `iscc` under Wine on the Linux runner
 
 Windows is the real target; non-Windows builds exist so development works anywhere.
@@ -45,12 +46,12 @@ go build -o wallpaper-info.exe .          # mise pins the Go toolchain (.mise.to
 ## Consumers
 
 - **windows-setup** (`wallpaper-info.ps1`) — provisioning fetches the installer URL from the public manifest, verifies its sha256, and runs it `/VERYSILENT /PRESET=phew-blue`. The installer owns the binary, preset, background, and Startup tray entry, so the script no longer needs `gh` auth or a **brand** checkout. It still sets the lock/logon screen, which needs elevation.
-- **website** — serves `manifest.json` and `backgrounds/<preset>/<WxH>.png` from `public/software/wallpaper-info/`, i.e. `https://phew.blue/software/wallpaper-info/`. No subdomain and so no cluster/HTTPRoute change. The release workflow pushes the manifest there; `npm run sync:wallpaper-info` refreshes the backgrounds from a local brand checkout.
+- **website** — lists the project on `phew.blue/software` via a one-file content entry (`src/content/software/wallpaper-info.md`); the page pulls the description and latest release from GitHub itself. It hosts **nothing**: the manifest and backgrounds are release assets, so there is no cross-repo push, no `WEBSITE_PUSH_TOKEN`, and no cluster/HTTPRoute change.
 - Deployed on the phew-blue Windows machines (e.g. LT-01-Windows) via that provisioning flow.
 
 ## Releases
 
-Tag `v*` → `.github/workflows/release.yml` builds `wallpaper-info-windows-amd64.exe` **and** the Inno Setup installer (`iscc` under Wine, via the vendored `.github/actions/wine-inno`) on the `home-ops` self-hosted runner, attaches both to a GitHub release, then generates `manifest.json` and pushes it to the **website** repo. Manifest generation is gated on proving both assets are anonymously downloadable, so it can never advertise a version whose upload failed. The workflow downloads the Go toolchain directly to `RUNNER_TEMP` (setup-go is flaky on the runner's NFS tool cache). Needs a `WEBSITE_PUSH_TOKEN` secret with `contents:write` on `phew-blue/website`.
+Tag `v*` → `.github/workflows/release.yml` runs the tests, builds `wallpaper-info-windows-amd64.exe` **and** the Inno Setup installer (`iscc` under Wine, via the vendored `.github/actions/wine-inno`) on the `home-ops` self-hosted runner, then generates `manifest.json`, stages the background PNGs under flat `background-<set>-<WxH>.png` names, and uploads everything to one GitHub release. **The release is the single source of truth** — clients read `releases/latest/download/manifest.json`, so nothing is published to another repo and no secrets are needed. The final step re-fetches the published manifest anonymously and HEADs every URL it advertises, so a release that would hand clients a dead preset fails instead. The workflow downloads the Go toolchain directly to `RUNNER_TEMP` (setup-go is flaky on the runner's NFS tool cache).
 
 ## Gotchas
 
@@ -63,3 +64,4 @@ Tag `v*` → `.github/workflows/release.yml` builds `wallpaper-info-windows-amd6
 - Config precedence is **defaults < preset < config file < explicit flags**; `flag.Visit` records which flags were explicit so `ApplyPreset` never overrides them
 - `Info.Sig()` is facts-only; `Info.SigWith(cfg)` adds preset + layout. `--watch`/`--tray` must use `SigWith`, or a preset switch renders nothing
 - Manifest/preset/background/update failures must always degrade (cache → local config), never fail a render
+- In `presets/*.toml`, every top-level key (`backgrounds`, `background_set`, …) must stay **above** the `[layout]` header — a key written after a table header belongs to that table, which once silently published presets with no backgrounds at all. `TestRealPresetsParse` guards this

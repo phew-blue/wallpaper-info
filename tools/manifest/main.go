@@ -1,7 +1,6 @@
 // Command manifest turns presets/*.toml plus the release artifacts into the manifest.json
-// published at https://phew.blue/software/wallpaper-info. It runs in the release workflow after the
-// GitHub release assets exist, so the manifest can never advertise a version that failed to
-// upload.
+// attached to each GitHub release. Backgrounds ship as release assets too, so a release is the
+// single source of truth and nothing has to be published anywhere else.
 package main
 
 import (
@@ -35,6 +34,17 @@ type presetSource struct {
 	Label       string       `toml:"label"`
 	Layout      layoutSource `toml:"layout"`
 	Backgrounds []string     `toml:"backgrounds"`
+	// BackgroundSet names the image set to use, so colour-variant presets can share one set of
+	// PNGs instead of shipping duplicates. Defaults to the preset id.
+	BackgroundSet string `toml:"background_set"`
+}
+
+// bgSet is the image set a preset draws on.
+func (p presetSource) bgSet() string {
+	if p.BackgroundSet != "" {
+		return p.BackgroundSet
+	}
+	return p.ID
 }
 
 type asset struct {
@@ -97,12 +107,48 @@ func buildManifest(presets []presetSource, version string, assets map[string]ass
 			if _, err := fmt.Sscanf(size, "%dx%d", &w, &h); err != nil || w <= 0 || h <= 0 {
 				return nil, fmt.Errorf("preset %q: malformed background size %q (want WxH)", ps.ID, size)
 			}
-			url, sha := resolve(ps.ID, size)
+			url, sha := resolve(ps.bgSet(), size)
 			p.Backgrounds = append(p.Backgrounds, background{W: w, H: h, URL: url, SHA256: sha})
 		}
 		m.Presets = append(m.Presets, p)
 	}
 	return json.MarshalIndent(m, "", "  ")
+}
+
+// BackgroundAssetName is the flat release-asset filename for one background. Release assets
+// have no directory structure, so the set and size are folded into the name.
+func BackgroundAssetName(set, size string) string {
+	return fmt.Sprintf("background-%s-%s.png", set, size)
+}
+
+// stageBackgrounds copies every background a preset references into dir under its flat asset
+// name, ready for upload. Returns how many files were staged.
+func stageBackgrounds(presets []presetSource, bgDir, dir string) (int, error) {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return 0, err
+	}
+	seen := map[string]bool{}
+	n := 0
+	for _, ps := range presets {
+		for _, size := range ps.Backgrounds {
+			name := BackgroundAssetName(ps.bgSet(), size)
+			if seen[name] {
+				continue // shared image set: stage it once
+			}
+			seen[name] = true
+			src := filepath.Join(bgDir, ps.bgSet(), size+".png")
+			b, err := os.ReadFile(src)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "manifest: warning: %v\n", err)
+				continue
+			}
+			if err := os.WriteFile(filepath.Join(dir, name), b, 0o644); err != nil {
+				return n, err
+			}
+			n++
+		}
+	}
+	return n, nil
 }
 
 func fileAsset(path, url string) (asset, error) {
@@ -160,7 +206,7 @@ func main() {
 	exePath := flag.String("exe", "", "path to the built .exe, for size and sha256")
 	setupPath := flag.String("setup", "", "path to the built installer, for size and sha256")
 	repo := flag.String("repo", "phew-blue/wallpaper-info", "GitHub repo hosting the release assets")
-	baseURL := flag.String("base-url", "https://phew.blue/software/wallpaper-info", "public base URL for backgrounds")
+	stage := flag.String("stage", "", "copy referenced backgrounds here under their flat release-asset names")
 	out := flag.String("out", "", "write here instead of stdout")
 	flag.Parse()
 
@@ -179,19 +225,30 @@ func main() {
 		fatal(err)
 	}
 
-	resolve := func(presetID, size string) (string, string) {
-		url := fmt.Sprintf("%s/backgrounds/%s/%s.png", *baseURL, presetID, size)
+	// Backgrounds ship as release assets alongside the binaries, so the release is the single
+	// source of truth and nothing has to be published anywhere else. Release assets are flat,
+	// hence the background-<set>-<WxH>.png naming.
+	resolve := func(set, size string) (string, string) {
+		url := fmt.Sprintf("%s/%s", rel, BackgroundAssetName(set, size))
 		if *bgDir == "" {
 			return url, ""
 		}
-		sha, err := fileSHA256(filepath.Join(*bgDir, presetID, size+".png"))
+		sha, err := fileSHA256(filepath.Join(*bgDir, set, size+".png"))
 		if err != nil {
 			// A missing background is not fatal: the client falls back to the current
 			// wallpaper, and a release should not be blocked on one missing image.
-			fmt.Fprintf(os.Stderr, "manifest: warning: %s/%s: %v\n", presetID, size, err)
+			fmt.Fprintf(os.Stderr, "manifest: warning: %s/%s: %v\n", set, size, err)
 			return url, ""
 		}
 		return url, sha
+	}
+
+	if *stage != "" && *bgDir != "" {
+		n, err := stageBackgrounds(presets, *bgDir, *stage)
+		if err != nil {
+			fatal(err)
+		}
+		fmt.Fprintf(os.Stderr, "manifest: staged %d background(s) in %s\n", n, *stage)
 	}
 
 	b, err := buildManifest(presets, *version, map[string]asset{"exe": exe, "setup": setup}, resolve)

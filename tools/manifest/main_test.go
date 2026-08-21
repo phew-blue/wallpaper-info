@@ -20,7 +20,7 @@ func TestBuildManifestShape(t *testing.T) {
 			"setup": {URL: "https://e/setup", SHA256: "bb", Size: 2},
 		},
 		func(presetID, size string) (string, string) {
-			return "https://phew.blue/software/wallpaper-info/backgrounds/" + presetID + "/" + size + ".png", "cc"
+			return "https://github.com/phew-blue/wallpaper-info/releases/download/v1/background-" + presetID + "-" + size + ".png", "cc"
 		})
 	if err != nil {
 		t.Fatal(err)

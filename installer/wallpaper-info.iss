@@ -13,7 +13,7 @@
   #define MyAppVersion "0.0.0"
 #endif
 #define MyAppPublisher "Phew Blue"
-#define MyAppURL       "https://phew.blue/software/wallpaper-info"
+#define MyAppURL       "https://phew.blue/software"
 #define MyAppExeName   "wallpaper-info.exe"
 
 [Setup]

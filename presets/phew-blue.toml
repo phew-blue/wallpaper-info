@@ -9,7 +9,7 @@ label       = "hostname"
 # Widths must match the directories under brand/assets/wallpapers/logo/png.
 # NOTE: every top-level key must stay ABOVE [layout] — a key after a table header
 # belongs to that table in TOML, which silently emptied this list once already.
-backgrounds = ["3840x2160", "2560x1440", "1920x1080"]
+backgrounds     = ["3840x2160", "2560x1440", "1920x1080"]
 
 [layout]
 corner = "bottom-right"

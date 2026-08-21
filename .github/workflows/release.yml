@@ -20,12 +20,13 @@ jobs:
           GO_VER="$(curl -fsSL 'https://go.dev/VERSION?m=text' | head -1)"
           echo "Using $GO_VER"
           curl -fsSL "https://go.dev/dl/${GO_VER}.linux-amd64.tar.gz" | tar -C "$RUNNER_TEMP" -xz
+          echo "$RUNNER_TEMP/go/bin" >> "$GITHUB_PATH"
           export PATH="$RUNNER_TEMP/go/bin:$PATH"
           go version
+          go test ./...
           GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath \
             -ldflags "-H windowsgui -s -w -X main.version=${GITHUB_REF_NAME}" \
             -o wallpaper-info-windows-amd64.exe .
-          echo "PATH=$PATH" >> "$GITHUB_ENV"
 
       - name: Setup Wine + Inno Setup
         id: inno
@@ -40,26 +41,10 @@ jobs:
             "/DMyAppVersion=${VERSION}" installer/wallpaper-info.iss
           ls -la installer/Output/
 
-      - uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3
-        with:
-          files: |
-            wallpaper-info-windows-amd64.exe
-            installer/Output/wallpaper-info-setup-*.exe
-          generate_release_notes: true
-
-      # The manifest must never advertise a version whose assets failed to upload, so prove the
-      # assets are fetchable without credentials before generating it.
-      - name: Verify assets are anonymously downloadable
-        run: |
-          set -euo pipefail
-          VERSION="${GITHUB_REF_NAME#v}"
-          for f in "wallpaper-info-windows-amd64.exe" "wallpaper-info-setup-${VERSION}.exe"; do
-            url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/${f}"
-            code=$(curl -sIL -o /dev/null -w '%{http_code}' "$url")
-            [ "$code" = "200" ] || { echo "::error::asset not publicly downloadable: $url ($code)"; exit 1; }
-          done
-
-      - name: Generate manifest
+      # The manifest describes assets uploaded in this same release, so it is generated first and
+      # shipped alongside them: the release is the single source of truth, and nothing has to be
+      # published to another repo.
+      - name: Generate manifest + stage backgrounds
         run: |
           set -euo pipefail
           VERSION="${GITHUB_REF_NAME#v}"
@@ -67,20 +52,40 @@ jobs:
             -version "${GITHUB_REF_NAME}" \
             -exe wallpaper-info-windows-amd64.exe \
             -setup "installer/Output/wallpaper-info-setup-${VERSION}.exe" \
+            -backgrounds ./backgrounds \
+            -stage "$RUNNER_TEMP/bg" \
             -out manifest.json
           cat manifest.json
+          cp "$RUNNER_TEMP"/bg/*.png .
+          ls -la background-*.png
 
-      - name: Publish manifest to website
-        env:
-          GH_TOKEN: ${{ secrets.WEBSITE_PUSH_TOKEN }}
+      - uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3
+        with:
+          files: |
+            wallpaper-info-windows-amd64.exe
+            installer/Output/wallpaper-info-setup-*.exe
+            manifest.json
+            background-*.png
+          generate_release_notes: true
+
+      # Provisioned machines fetch these without credentials, so prove that actually works rather
+      # than assuming the repo is still public.
+      - name: Verify the published manifest and every asset it advertises
         run: |
           set -euo pipefail
-          git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/phew-blue/website.git" "$RUNNER_TEMP/website"
-          mkdir -p "$RUNNER_TEMP/website/public/software/wallpaper-info"
-          cp manifest.json "$RUNNER_TEMP/website/public/software/wallpaper-info/manifest.json"
-          cd "$RUNNER_TEMP/website"
-          git config user.name  'Phew-Blue-Bot'
-          git config user.email 'bot@phew.blue'
-          git add public/software/wallpaper-info/manifest.json
-          git commit -m "chore(wallpaper-info): manifest for ${GITHUB_REF_NAME}" || exit 0
-          git push
+          url="https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/manifest.json"
+          code=000
+          for i in 1 2 3 4 5; do
+            code=$(curl -sIL -o /dev/null -w '%{http_code}' "$url")
+            [ "$code" = "200" ] && break
+            echo "attempt $i: HTTP $code — retrying"; sleep 5
+          done
+          [ "$code" = "200" ] || { echo "::error::manifest not publicly fetchable at $url ($code)"; exit 1; }
+          curl -sL "$url" -o /tmp/manifest.json
+          cat /tmp/manifest.json
+          # A preset pointing at a dead URL is worse than no preset, so check them all.
+          grep -o 'https://[^"]*' /tmp/manifest.json | sort -u | while read -r u; do
+            c=$(curl -sIL -o /dev/null -w '%{http_code}' "$u")
+            [ "$c" = "200" ] || { echo "::error::advertised asset missing: $u ($c)"; exit 1; }
+            echo "ok $c $u"
+          done

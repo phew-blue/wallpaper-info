@@ -6,8 +6,10 @@ secondary   = "#6A7078"
 font        = "Open Sans"
 label       = "hostname"
 
+# mono is a colour variant of the same wallpaper, so it reuses phew-blue's image set
+background_set  = "phew-blue"
 # Keep top-level keys above [layout] — see the note in phew-blue.toml.
-backgrounds = ["3840x2160", "2560x1440", "1920x1080"]
+backgrounds     = ["3840x2160", "2560x1440", "1920x1080"]
 
 [layout]
 corner = "top-left"
