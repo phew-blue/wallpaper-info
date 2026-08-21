@@ -10,3 +10,8 @@
 /config.toml
 installer/Output/
 installer/wallpaper-info.exe
+/manifest
+/wallpaper-info
+/wallpaper-info.exe
+manifest.json
+background-*.png
