@@ -61,6 +61,14 @@ development environment, so an unverifiable message loop is the riskier option.
 
 ### Endpoint: sub-path of the existing website
 
+> **Superseded during implementation.** Once the repo was public, hosting the generated
+> catalogue on the website was an extra hop for no benefit: the presets already live in git.
+> `manifest.json` and the background PNGs became **GitHub release assets**, read from
+> `releases/latest/download/manifest.json`. That removed the cross-repo push, the
+> `WEBSITE_PUSH_TOKEN` secret, the copied images, the sync script, and the HTTPRoute change.
+> The website keeps a one-file listing entry on `phew.blue/software`. The original reasoning
+> is kept below.
+
 `website` (Astro → nginx, `ghcr.io/phew-blue/website`) already serves the `phew.blue` apex
 via an HTTPRoute in `home-ops`. Presets are small static files, so they ship in that image
 rather than as a new deployment. `wallpaper-info.phew.blue` is added as a **second hostname
