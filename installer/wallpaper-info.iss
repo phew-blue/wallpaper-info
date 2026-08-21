@@ -61,7 +61,7 @@ Name: "{userstartup}\phew-blue wallpaper-info"; Filename: "{app}\{#MyAppExeName}
 
 [Run]
 ; Apply the chosen preset and paint the wallpaper immediately...
-Filename: "{app}\{#MyAppExeName}"; Parameters: "--preset {code:GetPreset}"; Flags: runhidden waituntilterminated
+Filename: "{app}\{#MyAppExeName}"; Parameters: "--preset {code:GetPreset}{code:GetManifestArg}"; Flags: runhidden waituntilterminated
 ; ...then leave the tray running (unticked by default in silent installs).
 Filename: "{app}\{#MyAppExeName}"; Parameters: "--tray"; Flags: runhidden nowait postinstall; Description: "Start wallpaper-info now"
 
@@ -92,6 +92,20 @@ begin
   PresetPage.Add('phew-blue');
   PresetPage.Add('mono');
   PresetPage.SelectedValueIndex := 0;
+end;
+
+// /MANIFEST=<url-or-path> points the one-shot preset render at a catalogue other than the
+// published one — a USB stick or an air-gapped share. Only this first render needs it: the
+// render persists the resolved preset, background and font into the config, so the Startup
+// tray process still looks right long after the stick is unplugged.
+function GetManifestArg(Param: string): string;
+var M: string;
+begin
+  M := ExpandConstant('{param:MANIFEST|}');
+  if M = '' then
+    Result := ''
+  else
+    Result := ' --manifest "' + M + '"';
 end;
 
 // /PRESET=<id> supports unattended installs from provisioning; the wizard page is the
