@@ -15,8 +15,102 @@ import (
 	"golang.org/x/image/math/fixed"
 )
 
-// Render draws the centered label (if any) and the bottom-right info block onto a copy of bg.
-func Render(bg image.Image, info Info, label, fontSpec, accentHex, secondaryHex string) image.Image {
+// Corner selects which edge the info block is anchored to.
+type Corner int
+
+const (
+	BottomRight Corner = iota // current, and the brand-wallpaper default
+	BottomLeft
+	TopRight
+	TopLeft
+)
+
+// ParseCorner maps a config string onto a Corner. The bool reports whether the string was known;
+// an unknown value must fall back to the default rather than silently moving the panel.
+func ParseCorner(s string) (Corner, bool) {
+	switch s {
+	case "bottom-right":
+		return BottomRight, true
+	case "bottom-left":
+		return BottomLeft, true
+	case "top-right":
+		return TopRight, true
+	case "top-left":
+		return TopLeft, true
+	}
+	return BottomRight, false
+}
+
+func (c Corner) right() bool { return c == BottomRight || c == TopRight }
+func (c Corner) top() bool   { return c == TopLeft || c == TopRight }
+
+// DefaultRows is the full row set, in the order the panel has always rendered them.
+var DefaultRows = []string{"user", "os", "uptime", "cpu", "ram", "disk", "nics", "wan"}
+
+// RenderOpts carries everything about how the panel looks, so Render keeps a two-argument
+// data/one-argument-options shape as more presentation knobs arrive.
+type RenderOpts struct {
+	Label     string // centered label ("" = none)
+	Font      string // family name or .ttf path
+	Accent    string // hex
+	Secondary string // hex
+	Corner    Corner
+	Rows      []string // nil or empty = DefaultRows
+}
+
+// infoRow is one rendered line. group marks the start of a visual group, which gets a gap
+// above it — reproducing the original spacing before the OS, hardware, and network blocks.
+type infoRow struct {
+	text  string
+	group bool
+}
+
+// infoRows turns the requested rows into display lines. Unknown row names are skipped so a
+// newer manifest naming a row this build does not know cannot blank the panel.
+func infoRows(info Info, rows []string) []infoRow {
+	if len(rows) == 0 {
+		rows = DefaultRows
+	}
+	var out []infoRow
+	for _, r := range rows {
+		switch r {
+		case "user":
+			out = append(out, infoRow{info.User + "  @  " + info.Host, false})
+		case "os":
+			out = append(out, infoRow{info.OS, true})
+		case "uptime":
+			out = append(out, infoRow{"uptime " + info.Uptime, false})
+		case "cpu":
+			out = append(out, infoRow{info.CPU, true})
+		case "ram":
+			out = append(out, infoRow{info.RAM, false})
+		case "disk":
+			out = append(out, infoRow{info.Disk, false})
+		case "nics":
+			for i, n := range info.Nics {
+				out = append(out, infoRow{n.Name + ":  " + n.IP, i == 0})
+			}
+		case "wan":
+			// The WAN line opens the network group only when no NIC lines preceded it.
+			out = append(out, infoRow{"WAN:  " + info.PublicIP, len(info.Nics) == 0})
+		}
+	}
+	return out
+}
+
+// infoLines is the text-only view of infoRows, for callers that do not care about spacing.
+func infoLines(info Info, rows []string) []string {
+	rs := infoRows(info, rows)
+	out := make([]string, 0, len(rs))
+	for _, r := range rs {
+		out = append(out, r.text)
+	}
+	return out
+}
+
+// Render draws the centered label (if any) and the info block onto a copy of bg.
+func Render(bg image.Image, info Info, opts RenderOpts) image.Image {
+	label, fontSpec, accentHex, secondaryHex := opts.Label, opts.Font, opts.Accent, opts.Secondary
 	b := bg.Bounds()
 	W, H := b.Dx(), b.Dy()
 	dst := image.NewRGBA(image.Rect(0, 0, W, H))
@@ -46,45 +140,45 @@ func Render(bg image.Image, info Info, label, fontSpec, accentHex, secondaryHex 
 		gap  int
 	}
 	g := int(secSize * 0.8)
-	lines := []line{
-		{info.User + "  @  " + info.Host, accent, semi, 0},
-		{info.OS, sec, reg, g},
-		{"uptime " + info.Uptime, sec, reg, 0},
-		{info.CPU, sec, reg, g},
-		{info.RAM, sec, reg, 0},
-		{info.Disk, sec, reg, 0},
-	}
-	// network: one labelled line per interface, then the public IP
-	for i, nic := range info.Nics {
+	var lines []line
+	for i, r := range infoRows(info, opts.Rows) {
 		gap := 0
-		if i == 0 {
+		if r.group && i > 0 { // no gap above the very first line
 			gap = g
 		}
-		lines = append(lines, line{nic.Name + ":  " + nic.IP, sec, reg, gap})
+		// The first line is the accented user@host header; the rest are secondary detail.
+		if i == 0 {
+			lines = append(lines, line{r.text, accent, semi, gap})
+			continue
+		}
+		lines = append(lines, line{r.text, sec, reg, gap})
 	}
-	wanGap := 0
-	if len(info.Nics) == 0 {
-		wanGap = g
-	}
-	lines = append(lines, line{"WAN:  " + info.PublicIP, sec, reg, wanGap})
 
-	marginR := int(float64(W) * 0.030)
+	marginX := int(float64(W) * 0.030)
 	// The brand tag strip is CSS `bottom: 7vh`, so its bottom edge is 0.07*H from the bottom.
 	// Put our last line's text bottom on that same edge: baseline = H - 0.07H - descent.
 	descent := float64(reg.Metrics().Descent) / 64.0
-	marginB := int(float64(H)*0.07 + descent)
+	marginY := int(float64(H)*0.07 + descent)
 	lineH := int(secSize * 1.55)
 
 	total := 0
 	for _, ln := range lines {
 		total += lineH + ln.gap
 	}
-	y := H - marginB - total + lineH
+	// Bottom anchors compute the first baseline back from the bottom edge; top anchors start at
+	// the top margin and advance downwards.
+	y := H - marginY - total + lineH
+	if opts.Corner.top() {
+		y = marginY + lineH
+	}
 	for _, ln := range lines {
 		y += ln.gap
 		d := &font.Drawer{Dst: dst, Src: image.NewUniform(ln.col), Face: ln.face}
-		w := d.MeasureString(ln.text)
-		d.Dot = fixed.Point26_6{X: fixed.I(W-marginR) - w, Y: fixed.I(y)}
+		x := fixed.I(marginX) // left-anchored
+		if opts.Corner.right() {
+			x = fixed.I(W-marginX) - d.MeasureString(ln.text)
+		}
+		d.Dot = fixed.Point26_6{X: x, Y: fixed.I(y)}
 		d.DrawString(ln.text)
 		y += lineH
 	}

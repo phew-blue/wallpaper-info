@@ -13,6 +13,16 @@ A single Go binary (flat `package main`, no subdirectories) that composites a sy
 - `base.go` — background selection: explicit `--base` path → current wallpaper → solid brand-dark canvas
 - `render.go` — drawing via `golang.org/x/image` (opentype); sizes are vw-relative to match the brand wallpaper's CSS (`.machine` = 1.6vw, tag strip = 0.72vw)
 - `wallpaper_windows.go` / `wallpaper_other.go` — `SystemParametersInfoW` set/get; non-Windows can only `--out` a PNG
+- `app.go` — `App` holds run-time state (config, manifest fetcher) so the tray, the watch loop, and one-shot runs all drive the same `RenderOnce`/`ApplyPresetByID`
+- `manifest.go` — fetches/parses the published catalogue; fresh cache → network → stale cache → give up. An unknown `schema` is ignored wholesale
+- `preset.go` — applies a preset to `Config`, picks the nearest-resolution background, caches it content-addressed by sha256
+- `demo.go` — `DemoInfo()`, the synthetic facts behind `--demo`
+- `tray_windows.go` / `tray_other.go` — `getlantern/systray` tray icon (embedded `.ico`); non-Windows returns an error so the caller falls back to headless watch
+- `update.go` + `update_windows.go` / `update_other.go` — `NeedsUpdate` version compare (platform-neutral, tested) and the silent installer hand-off
+- `console_windows.go` / `console_other.go` — frees a console Windows opened just for us, so the resident daemon shows no console window while CLI use still prints
+- `presets/*.toml` — authored preset sources (`background_set` lets a colour variant reuse another preset's images); `tools/manifest` turns them into the published `manifest.json` and stages the background assets
+- `backgrounds/<set>/<WxH>.png` — brand wallpapers vendored so a release is self-contained
+- `installer/wallpaper-info.iss` — per-user Inno Setup installer, compiled by `iscc` under Wine on the Linux runner
 
 Windows is the real target; non-Windows builds exist so development works anywhere.
 
@@ -26,22 +36,23 @@ go build -o wallpaper-info.exe .          # mise pins the Go toolchain (.mise.to
 ./wallpaper-info.exe --watch 30           # re-render every 30 min
 ```
 
-No tests exist. Release builds use `GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "-H windowsgui -s -w"` (windowless, so the `--watch` daemon shows no console).
+`go test ./...` covers the platform-independent logic: manifest parse/cache, preset application and precedence, background selection, config round-trip, render row selection, and version compare. Windows-only paths (tray, update, wallpaper set) cannot run in CI or in a Linux dev environment and are verified manually. Release builds use `GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=$TAG"`. It is deliberately a **console** binary, not `-H windowsgui`: the GUI subsystem never blocks the calling shell, which made `--list-presets`/`--version` unusable from a prompt. `DetachConsole()` instead frees a console Windows opened just for us (Startup shortcut, Explorer) so the resident tray/watch daemon shows no console window, while a terminal the user launched from is left attached.
 
 ## Inputs / Outputs
 
-- **Inputs:** optional base PNG/JPG, TOML config, flags (`--base`, `--name`, `--font`, `--accent`, `--secondary`, `--out`, `--watch`, `--config`, `--write-config`)
+- **Inputs:** optional base PNG/JPG, TOML config, the published manifest (presets + latest version), flags (`--base`, `--name`, `--font`, `--accent`, `--secondary`, `--out`, `--watch`, `--tray`, `--preset`, `--list-presets`, `--manifest`, `--update`, `--version`, `--demo`, `--config`, `--write-config`)
 - **Outputs:** sets the wallpaper via a PNG written to `%LOCALAPPDATA%\wallpaper-info\wallpaper.png`, or writes `--out <png>` previews. `docs/preview.png` is the tracked sample; root-level `preview*.png` is gitignored scratch.
 - Defaults are phew-blue branding: accent `#0092CA`, secondary `#6A7078`, centered label = hostname (`-` hides it)
 
 ## Consumers
 
-- **windows-setup** (`wallpaper-info.ps1`) — provisioning downloads the latest release binary via `gh release download -R phew-blue/wallpaper-info`, picks the nearest-resolution logo-only wallpaper from the **brand** repo as `--base`, runs once, and installs a Startup-folder shortcut running `--watch 1`. It replaced the old Playwright-rendered per-host wallpapers.
+- **windows-setup** (`wallpaper-info.ps1`) — provisioning fetches the installer URL from the public manifest, verifies its sha256, and runs it `/VERYSILENT /PRESET=phew-blue`. The installer owns the binary, preset, background, and Startup tray entry, so the script no longer needs `gh` auth or a **brand** checkout. It still sets the lock/logon screen, which needs elevation.
+- **website** — lists the project on `phew.blue/software` via a one-file content entry (`src/content/software/wallpaper-info.md`); the page pulls the description and latest release from GitHub itself. It hosts **nothing**: the manifest and backgrounds are release assets, so there is no cross-repo push, no `WEBSITE_PUSH_TOKEN`, and no cluster/HTTPRoute change.
 - Deployed on the phew-blue Windows machines (e.g. LT-01-Windows) via that provisioning flow.
 
 ## Releases
 
-Tag `v*` → `.github/workflows/release.yml` builds `wallpaper-info-windows-amd64.exe` on the `home-ops` self-hosted runner and attaches it to a GitHub release. The workflow downloads the Go toolchain directly to `RUNNER_TEMP` (setup-go is flaky on the runner's NFS tool cache).
+Tag `v*` → `.github/workflows/release.yml` runs the tests, builds `wallpaper-info-windows-amd64.exe` **and** the Inno Setup installer (`iscc` under Wine, via the vendored `.github/actions/wine-inno`) on the `home-ops` self-hosted runner, then generates `manifest.json`, stages the background PNGs under flat `background-<set>-<WxH>.png` names, and uploads everything to one GitHub release. **The release is the single source of truth** — clients read `releases/latest/download/manifest.json`, so nothing is published to another repo and no secrets are needed. The final step re-fetches the published manifest anonymously and HEADs every URL it advertises, so a release that would hand clients a dead preset fails instead. The workflow downloads the Go toolchain directly to `RUNNER_TEMP` (setup-go is flaky on the runner's NFS tool cache).
 
 ## Gotchas
 
@@ -49,3 +60,9 @@ Tag `v*` → `.github/workflows/release.yml` builds `wallpaper-info-windows-amd6
 - Win11 detection: the registry still reports "Windows 10" in `ProductName`; `osName()` rewrites it when `CurrentBuild >= 22000`
 - `skipNic()` filters virtual adapters (Hyper-V, VMware, WSL, Docker) — extend the list rather than special-casing callers
 - Public IP failures fall back to the last known value, then `"n/a"` — never block rendering on the network
+- **`docs/preview.png` must only ever be regenerated with `--demo`.** It was previously a real render leaking a WAN IP, full name, and LAN topology. History was squashed and the GitHub repo deleted/recreated in Aug 2026 to purge it — branch rewrites alone were not enough, because tags and the `refs/pull/*` ref kept the old blobs fetchable. Never commit a render of a real machine
+- The repo is **public** so the installer can fetch release assets anonymously (no `gh` auth on provisioned machines). Keep secrets and real host data out accordingly
+- Config precedence is **defaults < preset < config file < explicit flags**; `flag.Visit` records which flags were explicit so `ApplyPreset` never overrides them
+- `Info.Sig()` is facts-only; `Info.SigWith(cfg)` adds preset + layout. `--watch`/`--tray` must use `SigWith`, or a preset switch renders nothing
+- Manifest/preset/background/update failures must always degrade (cache → local config), never fail a render
+- In `presets/*.toml`, every top-level key (`backgrounds`, `background_set`, …) must stay **above** the `[layout]` header — a key written after a table header belongs to that table, which once silently published presets with no backgrounds at all. `TestRealPresetsParse` guards this

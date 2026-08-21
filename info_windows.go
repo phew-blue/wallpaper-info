@@ -16,7 +16,7 @@ import (
 )
 
 var (
-	kernel32          = syscall.NewLazyDLL("kernel32.dll")
+	kernel32           = syscall.NewLazyDLL("kernel32.dll")
 	procGetTickCount64 = kernel32.NewProc("GetTickCount64")
 	procGlobalMemory   = kernel32.NewProc("GlobalMemoryStatusEx")
 	procDiskSpace      = kernel32.NewProc("GetDiskFreeSpaceExW")
@@ -112,4 +112,17 @@ func diskInfo() string {
 		return ""
 	}
 	return fmt.Sprintf("%s  %.0f GiB · %.0f%% free", drive, float64(total)/(1<<30), float64(totalFree)/float64(total)*100)
+}
+
+// user32 itself is declared in wallpaper_windows.go.
+var procGetSystemMetrics = user32.NewProc("GetSystemMetrics")
+
+// ScreenWidth is the primary display's width in pixels, used to pick the nearest background.
+func ScreenWidth() int {
+	const smCXScreen = 0
+	r, _, _ := procGetSystemMetrics.Call(uintptr(smCXScreen))
+	if r == 0 {
+		return 1920 // GetSystemMetrics failed (no display / session 0): assume 1080p
+	}
+	return int(r)
 }
