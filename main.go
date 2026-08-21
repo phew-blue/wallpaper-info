@@ -83,7 +83,12 @@ func main() {
 		if err != nil {
 			return err
 		}
-		img := Render(bg, info, label, cfg.Font, cfg.Accent, cfg.Secondary)
+		img := Render(bg, info, RenderOpts{
+			Label:     label,
+			Font:      cfg.Font,
+			Accent:    cfg.Accent,
+			Secondary: cfg.Secondary,
+		})
 		if *out != "" {
 			f, err := os.Create(*out)
 			if err != nil {
