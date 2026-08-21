@@ -1,5 +1,19 @@
 # wallpaper-info Installer + Preset Endpoint Implementation Plan
 
+> ## ⚠️ Historical record — implemented, do not follow as instructions
+>
+> This plan was executed in August 2026. Two decisions changed during implementation, so
+> parts of it describe a system that was never shipped:
+>
+> | Plan says | Actually shipped |
+> |---|---|
+> | Manifest hosted on the website (`Task 12` publish step, all of `Task 13`) | Manifest + backgrounds are **GitHub release assets**, read from `releases/latest/download/manifest.json`. No website hosting, no `WEBSITE_PUSH_TOKEN`, no HTTPRoute change |
+> | `wallpaper-info.phew.blue` hostname | No subdomain. The site carries a listing entry on `phew.blue/software` only |
+> | Purge history with `git-filter-repo` (`Task 2`) | No Python available, and branch rewrites would not have removed tags or `refs/pull/*`. History was squashed and the GitHub repo deleted/recreated — see the note on Task 2 |
+>
+> **`README.md` and `CLAUDE.md` are the current truth.** This file is kept to record what was
+> planned and why it changed.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Ship `wallpaper-info` as a per-user Windows installer with a system-tray app that pulls presets and updates from a public static manifest at `wallpaper-info.phew.blue`.
@@ -2352,7 +2366,9 @@ The manifest must be generated **after** the release assets exist, so it can nev
           cat manifest.json
 ```
 
-- [ ] **Step 4: Publish the manifest to the website repo**
+- [ ] **Step 4: Publish the manifest to the website repo** — *replaced: the manifest is
+  uploaded as a release asset in the same step as the binaries; there is no cross-repo
+  push and no `WEBSITE_PUSH_TOKEN`.*
 
 ```yaml
       - name: Publish manifest to website
@@ -2395,6 +2411,11 @@ Expected: green run; both assets on the release; `manifest.json` committed to `w
 ---
 
 ### Task 13: Serve the manifest at wallpaper-info.phew.blue
+
+> **Not shipped.** Superseded entirely: the manifest and backgrounds became GitHub
+> release assets, so nothing is hosted on the website and no cluster change was made.
+> The website got a one-file listing entry (`src/content/software/wallpaper-info.md`)
+> on its existing `/software` page instead. The steps below were not carried out.
 
 **Files:**
 - Modify (website repo): `package.json` (background sync script)

@@ -1,7 +1,14 @@
 # wallpaper-info: installer, tray mode, and preset endpoint
 
 Date: 2026-08-20
-Status: approved design, ready for implementation planning
+Status: **implemented, with changes** — historical record, not current documentation
+
+> Where this document and the code disagree, the code is right. The published endpoint is now
+> `https://github.com/phew-blue/wallpaper-info/releases/latest/download/manifest.json` — the
+> manifest and background images are GitHub release assets, not files hosted on the website, so
+> the `wallpaper-info.phew.blue` hostname, the HTTPRoute change, and the cross-repo publish step
+> described below were never shipped. URLs in the schema example and the architecture diagram
+> are therefore illustrative only. See `README.md` and `CLAUDE.md` for what actually runs.
 
 ## Problem
 
