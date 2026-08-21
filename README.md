@@ -10,6 +10,44 @@ LAN IP, WAN IP. Optional centered label (defaults to the hostname).
 
 ![preview](docs/preview.png)
 
+## Install (Windows)
+
+Download the installer from **<https://wallpaper-info.phew.blue>** and run it. It is a
+per-user install (no admin), adds an Add/Remove Programs entry, and registers a Startup
+entry that runs `--tray`.
+
+Unattended:
+
+```powershell
+$m = Invoke-RestMethod https://wallpaper-info.phew.blue/manifest.json
+Invoke-WebRequest $m.latest.setup.url -OutFile $env:TEMP\setup.exe
+& $env:TEMP\setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /PRESET=phew-blue
+```
+
+### Tray
+
+`--tray` runs resident with a tray icon: **Refresh now**, **Presets** (switch look),
+**Check for updates**, **Open config**, **Quit**. If the tray cannot start it falls back
+to a headless refresh loop rather than leaving the desktop unpainted.
+
+### Presets
+
+Presets are published at <https://wallpaper-info.phew.blue/manifest.json> and carry
+colours, font, label rule, panel layout, and matching background images.
+
+```powershell
+./wallpaper-info.exe --list-presets
+./wallpaper-info.exe --preset mono
+```
+
+A preset only fills settings you have not set yourself. Precedence is
+**defaults < preset < config file < explicit flags**, so a hand-tuned machine is never
+silently restyled. Presets are authored as `presets/*.toml` in this repo; tagging a
+release regenerates the published manifest.
+
+Everything about presets degrades safely: if the manifest is unreachable, the last
+cached copy is used, then local config. A network failure never fails a render.
+
 ## Build / run
 
 ```powershell
@@ -47,6 +85,13 @@ symlinked here so it syncs across machines. `--config <path>` points at a specif
 | `--watch <minutes>` | `0` | re-render every N minutes (else run once) |
 | `--config <path>` | per-OS config dir | use a specific config file |
 | `--write-config` | — | save the current effective settings to the config file and exit |
+| `--tray` | — | run resident with a tray icon (Windows); implies the watch loop |
+| `--preset <id>` | (unset) | apply a published preset |
+| `--list-presets` | — | list the presets in the manifest and exit |
+| `--manifest <url>` | `https://wallpaper-info.phew.blue/manifest.json` | use a different manifest |
+| `--update` | — | install the latest release (Windows) and exit |
+| `--version` | — | print the version and exit |
+| `--demo` | — | render synthetic sample data (used for `docs/preview.png`) |
 
 Examples:
 ```powershell
@@ -56,5 +101,17 @@ Examples:
 ./wallpaper-info.exe --watch 30                                 # keep IP/uptime fresh
 ```
 
-Defaults are phew-blue branding; everything is overridable. A small GUI (file picker for the
-background, colour pickers, run-at-startup) is planned.
+Defaults are phew-blue branding; everything is overridable.
+
+## Regenerating the preview
+
+`docs/preview.png` **must** be rendered with `--demo`, which substitutes synthetic facts
+(`DEMO-PC`, documentation-range addresses). Rendering it from a real machine would publish that
+machine's hostname, LAN topology, and WAN IP.
+
+```bash
+./wallpaper-info --demo --name DEMO-PC \
+  --base ../brand/assets/wallpapers/logo/png/1920x1080/phew-blue-wallpaper.png \
+  --font /path/to/OpenSans-Regular.ttf \
+  --out docs/preview.png
+```
