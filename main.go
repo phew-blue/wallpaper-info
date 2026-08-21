@@ -1,0 +1,108 @@
+// Command wallpaper-info composites a system-info block (and an optional centered label) onto a
+// background image and sets it as the desktop wallpaper. Self-contained: the font comes from the
+// system and the background defaults to the current desktop wallpaper, so it runs anywhere with no
+// assets. Settings come from a TOML config file; flags override it for one-offs.
+package main
+
+import (
+	"flag"
+	"fmt"
+	"image/png"
+	"os"
+	"time"
+)
+
+func main() {
+	configPath := flag.String("config", "", "config file path (default: per-OS config dir)")
+	writeConfig := flag.Bool("write-config", false, "write the current effective settings to the config file and exit")
+	base := flag.String("base", "", "background image (default: current desktop wallpaper, else solid)")
+	name := flag.String("name", "", "centered label (default: hostname; '-' to hide)")
+	out := flag.String("out", "", "write the result PNG here instead of setting the wallpaper (preview)")
+	watch := flag.Int("watch", 0, "refresh every N minutes (0 = run once)")
+	fontSpec := flag.String("font", "", "font family name or .ttf path (default: Open Sans if installed, else Segoe UI)")
+	accent := flag.String("accent", "", "accent colour hex (default #0092CA)")
+	secondary := flag.String("secondary", "", "secondary text colour hex (default #6A7078)")
+	flag.Parse()
+
+	cfgFile := *configPath
+	if cfgFile == "" {
+		cfgFile = DefaultConfigPath()
+	}
+	cfg, err := LoadConfig(cfgFile)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "wallpaper-info: config:", err)
+		os.Exit(1)
+	}
+
+	// Flags override config only when explicitly set on the command line.
+	flag.Visit(func(f *flag.Flag) {
+		switch f.Name {
+		case "base":
+			cfg.Base = *base
+		case "name":
+			cfg.Name = *name
+		case "font":
+			cfg.Font = *fontSpec
+		case "accent":
+			cfg.Accent = *accent
+		case "secondary":
+			cfg.Secondary = *secondary
+		case "watch":
+			cfg.Watch = *watch
+		}
+	})
+
+	if *writeConfig {
+		if err := SaveConfig(cfgFile, cfg); err != nil {
+			fmt.Fprintln(os.Stderr, "wallpaper-info:", err)
+			os.Exit(1)
+		}
+		fmt.Println("wrote", cfgFile)
+		return
+	}
+
+	lastSig := ""
+	do := func() error {
+		info := Gather()
+		sig := info.Sig()
+		if *out == "" && sig == lastSig {
+			return nil // nothing changed: skip the render + wallpaper set
+		}
+		label := cfg.Name
+		switch label {
+		case "":
+			label = info.Host // default: the hostname
+		case "-":
+			label = "" // explicitly hidden
+		}
+		bg, err := LoadBase(cfg.Base)
+		if err != nil {
+			return err
+		}
+		img := Render(bg, info, label, cfg.Font, cfg.Accent, cfg.Secondary)
+		if *out != "" {
+			f, err := os.Create(*out)
+			if err != nil {
+				return err
+			}
+			defer f.Close()
+			return png.Encode(f, img)
+		}
+		if err := SetWallpaper(img); err != nil {
+			return err
+		}
+		lastSig = sig
+		return nil
+	}
+
+	if err := do(); err != nil {
+		fmt.Fprintln(os.Stderr, "wallpaper-info:", err)
+		os.Exit(1)
+	}
+	for cfg.Watch > 0 {
+		time.Sleep(time.Duration(cfg.Watch) * time.Minute)
+		if err := do(); err != nil {
+			fmt.Fprintln(os.Stderr, "wallpaper-info:", err)
+		}
+	}
+}

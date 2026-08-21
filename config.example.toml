@@ -1,0 +1,12 @@
+# wallpaper-info config. Copy to your config dir and edit, or run `wallpaper-info --write-config`.
+#   Windows : %APPDATA%\wallpaper-info\config.toml
+#   macOS   : ~/.config/wallpaper-info/config.toml   (or $XDG_CONFIG_HOME)
+#   Linux   : ~/.config/wallpaper-info/config.toml
+# Flags override any value here (e.g. --accent "#40c4ff").
+
+base      = ""          # background image path; "" = current desktop wallpaper, else a solid canvas
+name      = ""          # centered label; "" = hostname, "-" = hide
+font      = ""          # font family name or .ttf path; "" = Open Sans if installed, else Segoe UI
+accent    = "#0092CA"   # colour of the "user @ host" line and centered label
+secondary = "#6A7078"   # colour of the detail lines
+watch     = 0           # re-render every N minutes (0 = run once)

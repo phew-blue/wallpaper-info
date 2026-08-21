@@ -1,0 +1,10 @@
+# build output
+/wallpaper-info
+/wallpaper-info.exe
+*.exe
+# previews / scratch (root only; docs/preview.png is tracked)
+/preview*.png
+
+# local scratch config
+/sample-config.toml
+/config.toml

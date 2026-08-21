@@ -1,0 +1,29 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: home-ops # self-hosted runner in the home-ops cluster (not GitHub-hosted)
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - name: Install Go + build (windows/amd64, static, no CGO)
+        # setup-go is flaky on this runner's NFS tool-cache, so fetch the toolchain straight to
+        # fast ephemeral RUNNER_TEMP. Latest stable Go builds a go-1.23 module fine.
+        run: |
+          set -euo pipefail
+          GO_VER="$(curl -fsSL 'https://go.dev/VERSION?m=text' | head -1)"
+          echo "Using $GO_VER"
+          curl -fsSL "https://go.dev/dl/${GO_VER}.linux-amd64.tar.gz" | tar -C "$RUNNER_TEMP" -xz
+          export PATH="$RUNNER_TEMP/go/bin:$PATH"
+          go version
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "-H windowsgui -s -w" -o wallpaper-info-windows-amd64.exe .
+      - uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3
+        with:
+          files: wallpaper-info-windows-amd64.exe
+          generate_release_notes: true
