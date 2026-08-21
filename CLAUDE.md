@@ -19,6 +19,7 @@ A single Go binary (flat `package main`, no subdirectories) that composites a sy
 - `demo.go` — `DemoInfo()`, the synthetic facts behind `--demo`
 - `tray_windows.go` / `tray_other.go` — `getlantern/systray` tray icon (embedded `.ico`); non-Windows returns an error so the caller falls back to headless watch
 - `update.go` + `update_windows.go` / `update_other.go` — `NeedsUpdate` version compare (platform-neutral, tested) and the silent installer hand-off
+- `console_windows.go` / `console_other.go` — frees a console Windows opened just for us, so the resident daemon shows no console window while CLI use still prints
 - `presets/*.toml` — authored preset sources (`background_set` lets a colour variant reuse another preset's images); `tools/manifest` turns them into the published `manifest.json` and stages the background assets
 - `backgrounds/<set>/<WxH>.png` — brand wallpapers vendored so a release is self-contained
 - `installer/wallpaper-info.iss` — per-user Inno Setup installer, compiled by `iscc` under Wine on the Linux runner
@@ -35,7 +36,7 @@ go build -o wallpaper-info.exe .          # mise pins the Go toolchain (.mise.to
 ./wallpaper-info.exe --watch 30           # re-render every 30 min
 ```
 
-`go test ./...` covers the platform-independent logic: manifest parse/cache, preset application and precedence, background selection, config round-trip, render row selection, and version compare. Windows-only paths (tray, update, wallpaper set) cannot run in CI or in a Linux dev environment and are verified manually. Release builds use `GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "-H windowsgui -s -w -X main.version=$TAG"` (windowless, so the tray/watch daemon shows no console).
+`go test ./...` covers the platform-independent logic: manifest parse/cache, preset application and precedence, background selection, config round-trip, render row selection, and version compare. Windows-only paths (tray, update, wallpaper set) cannot run in CI or in a Linux dev environment and are verified manually. Release builds use `GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=$TAG"`. It is deliberately a **console** binary, not `-H windowsgui`: the GUI subsystem never blocks the calling shell, which made `--list-presets`/`--version` unusable from a prompt. `DetachConsole()` instead frees a console Windows opened just for us (Startup shortcut, Explorer) so the resident tray/watch daemon shows no console window, while a terminal the user launched from is left attached.
 
 ## Inputs / Outputs
 

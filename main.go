@@ -134,6 +134,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Past this point the process is resident, so drop a console Windows opened just for us
+	// (Startup shortcut, Explorer) and leave the user's own terminal alone.
+	if *tray || cfg.Watch > 0 {
+		DetachConsole()
+	}
+
 	if *tray {
 		// A shell that will not host a tray icon must not cost the machine its wallpaper:
 		// fall through to the headless watch loop instead of exiting.

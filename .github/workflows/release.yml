@@ -25,7 +25,7 @@ jobs:
           go version
           go test ./...
           GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath \
-            -ldflags "-H windowsgui -s -w -X main.version=${GITHUB_REF_NAME}" \
+            -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" \
             -o wallpaper-info-windows-amd64.exe .
 
       - name: Setup Wine + Inno Setup
