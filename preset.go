@@ -101,9 +101,13 @@ func VerifySHA256(path, want string) error {
 	return nil
 }
 
-// EnsureBackground returns a local path for bg, downloading it if the cache misses. A download
-// that fails verification is deleted rather than cached, so a bad artifact cannot stick.
-func EnsureBackground(bg Background, client *http.Client) (string, error) {
+// EnsureBackground returns a local path for bg, fetching it if the cache misses. base is the
+// manifest's own location, so relative references work (see ResolveAssetURL). The image is
+// always copied into the content-addressed cache, including from a local source: a USB stick
+// gets unplugged, and the wallpaper has to keep rendering afterwards.
+//
+// Anything that fails verification is deleted rather than cached, so a bad artifact cannot stick.
+func EnsureBackground(bg Background, base string, client *http.Client) (string, error) {
 	if bg.URL == "" || bg.SHA256 == "" {
 		return "", fmt.Errorf("background has no url or sha256")
 	}
@@ -115,21 +119,19 @@ func EnsureBackground(bg Background, client *http.Client) (string, error) {
 		return "", err
 	}
 
-	resp, err := client.Get(bg.URL)
+	src := ResolveAssetURL(base, bg.URL)
+	rc, err := openAsset(src, client)
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("background: HTTP %d", resp.StatusCode)
-	}
+	defer rc.Close()
 
 	tmp := path + ".part"
 	f, err := os.Create(tmp)
 	if err != nil {
 		return "", err
 	}
-	if _, err := io.Copy(f, io.LimitReader(resp.Body, 64<<20)); err != nil {
+	if _, err := io.Copy(f, io.LimitReader(rc, 64<<20)); err != nil {
 		f.Close()
 		os.Remove(tmp)
 		return "", err
@@ -145,4 +147,21 @@ func EnsureBackground(bg Background, client *http.Client) (string, error) {
 		return "", err
 	}
 	return path, nil
+}
+
+// openAsset opens an asset from wherever it lives: a local file (USB stick, air-gapped share)
+// or over http(s). Callers close the returned reader.
+func openAsset(src string, client *http.Client) (io.ReadCloser, error) {
+	if isLocalSource(src) {
+		return os.Open(LocalPath(src))
+	}
+	resp, err := client.Get(src)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		resp.Body.Close()
+		return nil, fmt.Errorf("asset: HTTP %d", resp.StatusCode)
+	}
+	return resp.Body, nil
 }

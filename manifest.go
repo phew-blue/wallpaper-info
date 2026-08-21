@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 )
 
@@ -59,6 +60,11 @@ type Manifest struct {
 	Schema  int      `json:"schema"`
 	Latest  Latest   `json:"latest"`
 	Presets []Preset `json:"presets"`
+
+	// Base is where this manifest came from — a directory for a local file, or the manifest
+	// URL's parent for a remote one. Relative asset references resolve against it, which is
+	// what makes a USB stick portable across drive letters. Not part of the JSON.
+	Base string `json:"-"`
 }
 
 // ParseManifest decodes and validates the manifest. An unknown schema is an error, not a
@@ -95,6 +101,47 @@ func ManifestCachePath() string {
 	return filepath.Join(home, ".cache", "wallpaper-info", "manifest.json")
 }
 
+// isLocalSource reports whether a manifest or asset reference points at the filesystem
+// rather than the network. Removable media (a provisioning USB) and air-gapped OB trucks
+// use local manifests, so http(s) is the exception, not the rule.
+func isLocalSource(s string) bool {
+	if s == "" {
+		return false
+	}
+	return !strings.HasPrefix(s, "http://") && !strings.HasPrefix(s, "https://")
+}
+
+// LocalPath strips a file:// prefix, returning a plain filesystem path. A Windows file URL is
+// file:///C:/dir, so the leading slash is dropped only when a drive letter follows it —
+// stripping it unconditionally would turn the Unix path /tmp/x into the relative tmp/x.
+func LocalPath(s string) string {
+	p := strings.TrimPrefix(s, "file://")
+	if len(p) >= 3 && p[0] == '/' && p[2] == ':' {
+		p = p[1:]
+	}
+	return p
+}
+
+// ResolveAssetURL turns an asset reference into something fetchable. Absolute http(s)
+// references are returned untouched; anything else is resolved against the manifest's own
+// location. That is what lets a USB stick be portable: the manifest says
+// "backgrounds/x.png" and it works whether the stick mounts as E: or F:.
+func ResolveAssetURL(base, ref string) string {
+	if ref == "" {
+		return ""
+	}
+	if strings.HasPrefix(ref, "http://") || strings.HasPrefix(ref, "https://") {
+		return ref
+	}
+	if base == "" {
+		return ref
+	}
+	if isLocalSource(base) {
+		return filepath.Join(base, filepath.FromSlash(ref))
+	}
+	return strings.TrimSuffix(base, "/") + "/" + strings.TrimPrefix(ref, "/")
+}
+
 // ManifestFetcher resolves the manifest, preferring a fresh cache, then the network, then a
 // stale cache. Callers must treat any error as "carry on with local config" — never as a
 // reason to fail a render.
@@ -122,8 +169,26 @@ func NewManifestFetcher(url string) ManifestFetcher {
 
 // Get returns the manifest from the freshest usable source.
 func (f ManifestFetcher) Get() (Manifest, error) {
+	// A local manifest (USB stick, air-gapped machine) is read straight from disk. There is
+	// nothing to cache — the file is the source — and no network failure to fall back from, so
+	// a bad local manifest is reported rather than silently swallowed.
+	if isLocalSource(f.URL) {
+		path := LocalPath(f.URL)
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return Manifest{}, err
+		}
+		m, err := ParseManifest(b)
+		if err != nil {
+			return Manifest{}, err
+		}
+		m.Base = filepath.Dir(path)
+		return m, nil
+	}
+
 	if b, mod, err := f.readCache(); err == nil && f.Now().Sub(mod) < f.TTL {
 		if m, err := ParseManifest(b); err == nil {
+			m.Base = remoteBase(f.URL)
 			return m, nil
 		}
 	}
@@ -131,6 +196,7 @@ func (f ManifestFetcher) Get() (Manifest, error) {
 	if b, err := f.fetch(); err == nil {
 		if m, err := ParseManifest(b); err == nil {
 			f.writeCache(b) // best-effort: a read-only cache dir must not fail the fetch
+			m.Base = remoteBase(f.URL)
 			return m, nil
 		}
 	}
@@ -138,6 +204,7 @@ func (f ManifestFetcher) Get() (Manifest, error) {
 	// Network failed or served something unusable: any cached manifest beats nothing.
 	if b, _, err := f.readCache(); err == nil {
 		if m, err := ParseManifest(b); err == nil {
+			m.Base = remoteBase(f.URL)
 			return m, nil
 		}
 	}
@@ -170,4 +237,13 @@ func (f ManifestFetcher) writeCache(b []byte) {
 		return
 	}
 	_ = os.WriteFile(f.CachePath, b, 0o644)
+}
+
+// remoteBase is the directory part of a manifest URL, so a remote manifest can also use
+// relative asset references.
+func remoteBase(u string) string {
+	if i := strings.LastIndex(u, "/"); i > 0 {
+		return u[:i]
+	}
+	return ""
 }

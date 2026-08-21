@@ -206,6 +206,7 @@ func main() {
 	exePath := flag.String("exe", "", "path to the built .exe, for size and sha256")
 	setupPath := flag.String("setup", "", "path to the built installer, for size and sha256")
 	repo := flag.String("repo", "phew-blue/wallpaper-info", "GitHub repo hosting the release assets")
+	localMode := flag.Bool("local", false, "emit relative asset URLs for removable media (a USB manifest must work as E: or F:)")
 	stage := flag.String("stage", "", "copy referenced backgrounds here under their flat release-asset names")
 	out := flag.String("out", "", "write here instead of stdout")
 	flag.Parse()
@@ -216,11 +217,16 @@ func main() {
 	}
 
 	rel := fmt.Sprintf("https://github.com/%s/releases/download/%s", *repo, *version)
-	exe, err := fileAsset(*exePath, rel+"/wallpaper-info-windows-amd64.exe")
+	if *localMode {
+		// On removable media everything sits next to the manifest, so references are
+		// relative: the stick works whatever drive letter it mounts as.
+		rel = ""
+	}
+	exe, err := fileAsset(*exePath, joinRef(rel, "wallpaper-info-windows-amd64.exe"))
 	if err != nil {
 		fatal(err)
 	}
-	setup, err := fileAsset(*setupPath, rel+"/"+filepath.Base(*setupPath))
+	setup, err := fileAsset(*setupPath, joinRef(rel, filepath.Base(*setupPath)))
 	if err != nil {
 		fatal(err)
 	}
@@ -229,7 +235,10 @@ func main() {
 	// source of truth and nothing has to be published anywhere else. Release assets are flat,
 	// hence the background-<set>-<WxH>.png naming.
 	resolve := func(set, size string) (string, string) {
-		url := fmt.Sprintf("%s/%s", rel, BackgroundAssetName(set, size))
+		url := joinRef(rel, BackgroundAssetName(set, size))
+		if *localMode {
+			url = joinRef("backgrounds", BackgroundAssetName(set, size))
+		}
 		if *bgDir == "" {
 			return url, ""
 		}
@@ -269,4 +278,13 @@ func main() {
 func fatal(err error) {
 	fmt.Fprintln(os.Stderr, "manifest:", err)
 	os.Exit(1)
+}
+
+// joinRef builds an asset reference. With an empty base the reference stays relative, which is
+// what removable media needs.
+func joinRef(base, name string) string {
+	if base == "" {
+		return name
+	}
+	return base + "/" + name
 }
