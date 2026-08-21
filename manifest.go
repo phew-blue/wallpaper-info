@@ -17,7 +17,7 @@ const ManifestSchema = 1
 
 // DefaultManifestURL is the published preset catalogue. It is a static file, so it stays
 // available even when everything else in the cluster is down.
-const DefaultManifestURL = "https://wallpaper-info.phew.blue/manifest.json"
+const DefaultManifestURL = "https://phew.blue/software/wallpaper-info/manifest.json"
 
 // Asset is a downloadable release artifact.
 type Asset struct {

@@ -1,5 +1,5 @@
 // Command manifest turns presets/*.toml plus the release artifacts into the manifest.json
-// published at https://wallpaper-info.phew.blue. It runs in the release workflow after the
+// published at https://phew.blue/software/wallpaper-info. It runs in the release workflow after the
 // GitHub release assets exist, so the manifest can never advertise a version that failed to
 // upload.
 package main
@@ -160,7 +160,7 @@ func main() {
 	exePath := flag.String("exe", "", "path to the built .exe, for size and sha256")
 	setupPath := flag.String("setup", "", "path to the built installer, for size and sha256")
 	repo := flag.String("repo", "phew-blue/wallpaper-info", "GitHub repo hosting the release assets")
-	baseURL := flag.String("base-url", "https://wallpaper-info.phew.blue", "public base URL for backgrounds")
+	baseURL := flag.String("base-url", "https://phew.blue/software/wallpaper-info", "public base URL for backgrounds")
 	out := flag.String("out", "", "write here instead of stdout")
 	flag.Parse()
 

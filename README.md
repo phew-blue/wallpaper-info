@@ -13,14 +13,14 @@ per-NIC LAN IPs and the WAN IP. Which rows appear and which corner they sit in a
 
 ## Install (Windows)
 
-Download the installer from **<https://wallpaper-info.phew.blue>** and run it. It is a
+Download the installer from **<https://phew.blue/software/wallpaper-info>** and run it. It is a
 per-user install (no admin), adds an Add/Remove Programs entry, and registers a Startup
 entry that runs `--tray`.
 
 Unattended:
 
 ```powershell
-$m = Invoke-RestMethod https://wallpaper-info.phew.blue/manifest.json
+$m = Invoke-RestMethod https://phew.blue/software/wallpaper-info/manifest.json
 Invoke-WebRequest $m.latest.setup.url -OutFile $env:TEMP\setup.exe
 & $env:TEMP\setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /PRESET=phew-blue
 ```
@@ -33,7 +33,7 @@ to a headless refresh loop rather than leaving the desktop unpainted.
 
 ### Presets
 
-Presets are published at <https://wallpaper-info.phew.blue/manifest.json> and carry
+Presets are published at <https://phew.blue/software/wallpaper-info/manifest.json> and carry
 colours, font, label rule, panel layout, and matching background images.
 
 ```powershell
@@ -93,7 +93,7 @@ symlinked here so it syncs across machines. `--config <path>` points at a specif
 | `--tray` | — | run resident with a tray icon (Windows); implies the watch loop |
 | `--preset <id>` | (unset) | apply a published preset |
 | `--list-presets` | — | list the presets in the manifest and exit |
-| `--manifest <url>` | `https://wallpaper-info.phew.blue/manifest.json` | use a different manifest |
+| `--manifest <url>` | `https://phew.blue/software/wallpaper-info/manifest.json` | use a different manifest |
 | `--update` | — | install the latest release (Windows) and exit |
 | `--version` | — | print the version and exit |
 | `--demo` | — | render synthetic sample data (used for `docs/preview.png`) |

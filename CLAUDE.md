@@ -45,7 +45,7 @@ go build -o wallpaper-info.exe .          # mise pins the Go toolchain (.mise.to
 ## Consumers
 
 - **windows-setup** (`wallpaper-info.ps1`) — provisioning fetches the installer URL from the public manifest, verifies its sha256, and runs it `/VERYSILENT /PRESET=phew-blue`. The installer owns the binary, preset, background, and Startup tray entry, so the script no longer needs `gh` auth or a **brand** checkout. It still sets the lock/logon screen, which needs elevation.
-- **website** — serves `manifest.json` and `backgrounds/<preset>/<WxH>.png` from `public/wallpaper-info/`, reachable at both `wallpaper-info.phew.blue` and `phew.blue/wallpaper-info/`. The release workflow pushes the manifest there; `npm run sync:wallpaper-info` refreshes the backgrounds from a local brand checkout.
+- **website** — serves `manifest.json` and `backgrounds/<preset>/<WxH>.png` from `public/software/wallpaper-info/`, i.e. `https://phew.blue/software/wallpaper-info/`. No subdomain and so no cluster/HTTPRoute change. The release workflow pushes the manifest there; `npm run sync:wallpaper-info` refreshes the backgrounds from a local brand checkout.
 - Deployed on the phew-blue Windows machines (e.g. LT-01-Windows) via that provisioning flow.
 
 ## Releases

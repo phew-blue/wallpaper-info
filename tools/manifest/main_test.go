@@ -20,7 +20,7 @@ func TestBuildManifestShape(t *testing.T) {
 			"setup": {URL: "https://e/setup", SHA256: "bb", Size: 2},
 		},
 		func(presetID, size string) (string, string) {
-			return "https://wallpaper-info.phew.blue/backgrounds/" + presetID + "/" + size + ".png", "cc"
+			return "https://phew.blue/software/wallpaper-info/backgrounds/" + presetID + "/" + size + ".png", "cc"
 		})
 	if err != nil {
 		t.Fatal(err)
@@ -46,5 +46,29 @@ func TestBuildManifestRejectsBadBackgroundSize(t *testing.T) {
 	presets := []presetSource{{ID: "x", Backgrounds: []string{"not-a-size"}}}
 	if _, err := buildManifest(presets, "v1", nil, func(string, string) (string, string) { return "", "" }); err == nil {
 		t.Error("want an error for a malformed background size")
+	}
+}
+
+// TestRealPresetsParse guards against a TOML footgun that already bit once: a top-level key
+// written after a [table] header belongs to that table, which silently turned every preset's
+// background list into null. Parsing succeeded, so only this assertion catches it.
+func TestRealPresetsParse(t *testing.T) {
+	presets, err := loadPresets("../../presets")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(presets) == 0 {
+		t.Fatal("no presets found in ../../presets")
+	}
+	for _, p := range presets {
+		if p.ID == "" || p.Accent == "" || p.Label == "" {
+			t.Errorf("preset %+v is missing required fields", p)
+		}
+		if len(p.Backgrounds) == 0 {
+			t.Errorf("preset %q has no backgrounds — is the key below [layout]?", p.ID)
+		}
+		if p.Layout.Corner == "" || len(p.Layout.Rows) == 0 {
+			t.Errorf("preset %q has an empty layout", p.ID)
+		}
 	}
 }

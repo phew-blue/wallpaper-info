@@ -76,11 +76,11 @@ jobs:
         run: |
           set -euo pipefail
           git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/phew-blue/website.git" "$RUNNER_TEMP/website"
-          mkdir -p "$RUNNER_TEMP/website/public/wallpaper-info"
-          cp manifest.json "$RUNNER_TEMP/website/public/wallpaper-info/manifest.json"
+          mkdir -p "$RUNNER_TEMP/website/public/software/wallpaper-info"
+          cp manifest.json "$RUNNER_TEMP/website/public/software/wallpaper-info/manifest.json"
           cd "$RUNNER_TEMP/website"
           git config user.name  'Phew-Blue-Bot'
           git config user.email 'bot@phew.blue'
-          git add public/wallpaper-info/manifest.json
+          git add public/software/wallpaper-info/manifest.json
           git commit -m "chore(wallpaper-info): manifest for ${GITHUB_REF_NAME}" || exit 0
           git push
