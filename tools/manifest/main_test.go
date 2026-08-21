@@ -22,7 +22,7 @@ func TestBuildManifestShape(t *testing.T) {
 		func(presetID, size string) (string, string) {
 			return "https://github.com/phew-blue/wallpaper-info/releases/download/v1/background-" + presetID + "-" + size + ".png", "cc"
 		},
-		func(file string) (string, string) { return "fonts/" + file, "ff" })
+		func(file string) (string, string, int64) { return "fonts/" + file, "ff", 42 })
 	if err != nil {
 		t.Fatal(err)
 	}

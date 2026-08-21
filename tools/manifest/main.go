@@ -96,8 +96,8 @@ type manifest struct {
 // resolveBG returns the public URL and sha256 for one preset background.
 type resolveBG func(presetID, size string) (url, sha string)
 
-// resolveFont returns the published URL and sha256 for a preset's font file.
-type resolveFont func(file string) (url, sha string)
+// resolveFont returns the published URL, sha256 and size for a preset's font file.
+type resolveFont func(file string) (url, sha string, size int64)
 
 // buildManifest renders the published JSON. It is separated from I/O so it can be tested.
 func buildManifest(presets []presetSource, version string, assets map[string]asset, resolve resolveBG, resolveF resolveFont) ([]byte, error) {
@@ -118,8 +118,8 @@ func buildManifest(presets []presetSource, version string, assets map[string]ass
 			p.Backgrounds = append(p.Backgrounds, background{W: w, H: h, URL: url, SHA256: sha})
 		}
 		if ps.FontFile != "" && resolveF != nil {
-			if url, sha := resolveF(ps.FontFile); url != "" {
-				p.FontAsset = &asset{URL: url, SHA256: sha}
+			if url, sha, size := resolveF(ps.FontFile); url != "" {
+				p.FontAsset = &asset{URL: url, SHA256: sha, Size: size}
 			}
 		}
 		m.Presets = append(m.Presets, p)
@@ -269,7 +269,7 @@ func main() {
 	// Fonts ship with the preset so the panel does not depend on what happens to be installed.
 	// On removable media they sit in fonts\ next to the manifest; in a release they are flat
 	// assets like the backgrounds.
-	resolveF := func(file string) (string, string) {
+	resolveF := func(file string) (string, string, int64) {
 		var url string
 		if *localMode {
 			url = joinRef("fonts", file)
@@ -277,15 +277,15 @@ func main() {
 			url = joinRef(rel, "font-"+file)
 		}
 		if *fontDir == "" {
-			return url, ""
+			return url, "", 0
 		}
-		sha, err := fileSHA256(filepath.Join(*fontDir, file))
+		a, err := fileAsset(filepath.Join(*fontDir, file), url)
 		if err != nil {
 			// Not fatal: the client falls back to a family name, then to Segoe UI.
 			fmt.Fprintf(os.Stderr, "manifest: warning: font %s: %v\n", file, err)
-			return url, ""
+			return url, "", 0
 		}
-		return url, sha
+		return url, a.SHA256, a.Size
 	}
 
 	if *stage != "" && *bgDir != "" {
