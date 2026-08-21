@@ -22,8 +22,65 @@ jobs:
           curl -fsSL "https://go.dev/dl/${GO_VER}.linux-amd64.tar.gz" | tar -C "$RUNNER_TEMP" -xz
           export PATH="$RUNNER_TEMP/go/bin:$PATH"
           go version
-          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "-H windowsgui -s -w" -o wallpaper-info-windows-amd64.exe .
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath \
+            -ldflags "-H windowsgui -s -w -X main.version=${GITHUB_REF_NAME}" \
+            -o wallpaper-info-windows-amd64.exe .
+          echo "PATH=$PATH" >> "$GITHUB_ENV"
+
+      - name: Setup Wine + Inno Setup
+        id: inno
+        uses: ./.github/actions/wine-inno
+
+      - name: Build installer
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          cp wallpaper-info-windows-amd64.exe installer/wallpaper-info.exe
+          xvfb-run -a wine "${{ steps.inno.outputs.iscc }}" \
+            "/DMyAppVersion=${VERSION}" installer/wallpaper-info.iss
+          ls -la installer/Output/
+
       - uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3
         with:
-          files: wallpaper-info-windows-amd64.exe
+          files: |
+            wallpaper-info-windows-amd64.exe
+            installer/Output/wallpaper-info-setup-*.exe
           generate_release_notes: true
+
+      # The manifest must never advertise a version whose assets failed to upload, so prove the
+      # assets are fetchable without credentials before generating it.
+      - name: Verify assets are anonymously downloadable
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          for f in "wallpaper-info-windows-amd64.exe" "wallpaper-info-setup-${VERSION}.exe"; do
+            url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/${f}"
+            code=$(curl -sIL -o /dev/null -w '%{http_code}' "$url")
+            [ "$code" = "200" ] || { echo "::error::asset not publicly downloadable: $url ($code)"; exit 1; }
+          done
+
+      - name: Generate manifest
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          go run ./tools/manifest \
+            -version "${GITHUB_REF_NAME}" \
+            -exe wallpaper-info-windows-amd64.exe \
+            -setup "installer/Output/wallpaper-info-setup-${VERSION}.exe" \
+            -out manifest.json
+          cat manifest.json
+
+      - name: Publish manifest to website
+        env:
+          GH_TOKEN: ${{ secrets.WEBSITE_PUSH_TOKEN }}
+        run: |
+          set -euo pipefail
+          git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/phew-blue/website.git" "$RUNNER_TEMP/website"
+          mkdir -p "$RUNNER_TEMP/website/public/wallpaper-info"
+          cp manifest.json "$RUNNER_TEMP/website/public/wallpaper-info/manifest.json"
+          cd "$RUNNER_TEMP/website"
+          git config user.name  'Phew-Blue-Bot'
+          git config user.email 'bot@phew.blue'
+          git add public/wallpaper-info/manifest.json
+          git commit -m "chore(wallpaper-info): manifest for ${GITHUB_REF_NAME}" || exit 0
+          git push
