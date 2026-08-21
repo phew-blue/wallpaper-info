@@ -112,6 +112,13 @@ func main() {
 		return
 	}
 
+	// --tray is a resident mode, so it implies a refresh interval: without one, Watch() returns
+	// immediately and the tray sits there showing a wallpaper that never updates. 1 minute
+	// matches what the old provisioning shortcut used, and the Sig check makes it cheap.
+	if *tray && cfg.Watch == 0 {
+		cfg.Watch = 1
+	}
+
 	app := &App{
 		Cfg:      cfg,
 		CfgPath:  cfgFile,
