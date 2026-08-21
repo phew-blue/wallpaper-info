@@ -1,0 +1,58 @@
+name: Setup Wine + Inno Setup
+description: >
+  Install Wine (32-bit) and Inno Setup 6 under Wine on a Linux runner so
+  ISCC can compile .iss files without a Windows host. Caches the Wine
+  prefix (with Inno installed), persists WINEPREFIX for later steps, and
+  outputs the ISCC.exe path.
+
+outputs:
+  iscc:
+    description: Path to ISCC.exe inside the Wine prefix
+    value: ${{ steps.resolve.outputs.iscc }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install Wine (32-bit) + helpers
+      shell: bash
+      run: |
+        sudo dpkg --add-architecture i386
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends \
+          wine wine64 wine32:i386 xvfb cabextract winbind curl
+        wine --version
+        echo "WINEPREFIX=${HOME}/.wine" >> "$GITHUB_ENV"
+        echo "WINEDEBUG=-all" >> "$GITHUB_ENV"
+
+    # Cache the whole prefix — once Inno is installed into drive_c, a cache
+    # hit skips the wineboot + ~30s silent install. Bump the -vN suffix to
+    # force a rebuild (e.g. on an Inno version bump).
+    - name: Cache Wine prefix (Inno Setup 6.7.1)
+      id: wine-cache
+      uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4
+      with:
+        path: ~/.wine
+        key: wine-inno-6.7.1-v1
+
+    - name: Init Wine + install Inno Setup 6 (cache miss)
+      if: steps.wine-cache.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        WINEDEBUG: -all
+      run: |
+        export WINEPREFIX="${HOME}/.wine"
+        xvfb-run -a wineboot --init
+        sleep 5
+        # jrsoftware serves Inno Setup from GitHub releases now (the old
+        # files.jrsoftware.org/is/6/*.exe paths 404).
+        curl -fsSL -o is.exe \
+          https://github.com/jrsoftware/issrc/releases/download/is-6_7_1/innosetup-6.7.1.exe
+        xvfb-run -a wine is.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-
+
+    - name: Resolve ISCC path
+      id: resolve
+      shell: bash
+      run: |
+        ISCC=$(find "${HOME}/.wine/drive_c" -iname ISCC.exe | head -1)
+        test -n "$ISCC" || { echo "::error::ISCC.exe not found (cache may be stale — bump wine-inno key)"; exit 1; }
+        echo "iscc=$ISCC" >> "$GITHUB_OUTPUT"

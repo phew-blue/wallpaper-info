@@ -8,3 +8,5 @@
 # local scratch config
 /sample-config.toml
 /config.toml
+installer/Output/
+installer/wallpaper-info.exe
