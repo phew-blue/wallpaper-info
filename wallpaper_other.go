@@ -14,5 +14,5 @@ func SetWallpaper(img image.Image) error {
 	return errors.New("setting the wallpaper is only supported on Windows; use --out to write a PNG")
 }
 
-// OutputPath: nothing is written off Windows, so there is no output file to guard against.
-func OutputPath() string { return "" }
+// OurRenders: nothing is written off Windows, so there is no output file to guard against.
+func OurRenders() []string { return nil }
