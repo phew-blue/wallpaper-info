@@ -41,10 +41,14 @@ WizardStyle=modern
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayIcon={app}\{#MyAppExeName}
 ; Every provisioned machine already runs a resident copy, and self-update runs this installer
-; while the tray process is alive. Windows will not overwrite a locked .exe, so without these
-; an upgrade silently does nothing at all. AppMutex matches InstanceMutexName in
-; instance_windows.go; PrepareToInstall below is the belt-and-braces force close.
-AppMutex=phew-blue-wallpaper-info
+; while the tray process is alive. Windows will not overwrite a locked .exe, so the running
+; copy has to go before the file step.
+;
+; Deliberately NO AppMutex. Inno checks it before PrepareToInstall and can only respond with a
+; message box, so under /SUPPRESSMSGBOXES it defaults to Cancel and Setup aborts with exit 1
+; having installed nothing -- i.e. it turned every silent upgrade into a silent no-op, the
+; exact failure it was added to prevent. PrepareToInstall below does the job instead: it runs
+; unattended, and taskkill closes a tray app with no main window, which Restart Manager cannot.
 CloseApplications=force
 RestartApplications=no
 
