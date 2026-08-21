@@ -20,6 +20,9 @@
 AppId={{7C1B6A54-2E4D-4C2F-9E1A-0B7D3F5A9C21}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
+; Without this, Add/Remove Programs shows "wallpaper-info version 0.2.0" as the name; the
+; version already has its own column.
+AppVerName={#MyAppName}
 AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
