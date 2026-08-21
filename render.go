@@ -270,12 +270,16 @@ func resolveFontSpec(spec string, bold bool) []string {
 	if st, err := os.Stat(spec); err == nil && !st.IsDir() {
 		return []string{spec}
 	}
+	// Google's font files drop the space AND carry a weight suffix ("OpenSans-Regular.ttf"), so
+	// the de-spaced name has to be tried with the suffix too. Without that pairing, --font
+	// "Open Sans" found nothing on a machine that had Open Sans installed and silently fell back
+	// to the 7x13 bitmap face -- a tiny monospace panel that scaled with nothing.
 	nospace := strings.ReplaceAll(spec, " ", "")
 	var names []string
 	if bold {
-		names = append(names, spec+"-SemiBold.ttf", nospace+"b.ttf", nospace+"sb.ttf")
+		names = append(names, spec+"-SemiBold.ttf", nospace+"-SemiBold.ttf", nospace+"b.ttf", nospace+"sb.ttf")
 	}
-	names = append(names, spec+".ttf", nospace+".ttf", spec+"-Regular.ttf")
+	names = append(names, spec+".ttf", nospace+".ttf", spec+"-Regular.ttf", nospace+"-Regular.ttf")
 	return inDirs(names...)
 }
 
