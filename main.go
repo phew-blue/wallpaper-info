@@ -99,6 +99,15 @@ func main() {
 						}
 					}
 				}
+				// Choosing a preset is a change to the machine's setup, not a one-off render, so
+				// persist it (the tray does the same when you switch preset from its menu).
+				// Without this the installer's one-shot `--preset` render is forgotten, and the
+				// Startup `--tray` process comes back with no preset and no background.
+				if explicit["preset"] {
+					if err := SaveConfig(cfgFile, cfg); err != nil {
+						fmt.Fprintln(os.Stderr, "wallpaper-info: could not save preset:", err)
+					}
+				}
 			}
 		}
 	}

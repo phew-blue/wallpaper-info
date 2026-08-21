@@ -32,6 +32,12 @@ func currentWallpaperPath() string {
 	return syscall.UTF16ToString(buf)
 }
 
+// OutputPath is where the rendered wallpaper is written. LoadBase must never use it as a
+// background: compositing onto our own output stacks text on text every refresh.
+func OutputPath() string {
+	return filepath.Join(os.Getenv("LOCALAPPDATA"), "wallpaper-info", "wallpaper.png")
+}
+
 func SetWallpaper(img image.Image) error {
 	dir := filepath.Join(os.Getenv("LOCALAPPDATA"), "wallpaper-info")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
