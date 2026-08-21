@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"image/png"
+	"net/http"
 	"os"
 	"time"
 )
@@ -20,6 +21,10 @@ func main() {
 	out := flag.String("out", "", "write the result PNG here instead of setting the wallpaper (preview)")
 	watch := flag.Int("watch", 0, "refresh every N minutes (0 = run once)")
 	demo := flag.Bool("demo", false, "render synthetic sample data instead of this machine's facts (for docs)")
+	preset := flag.String("preset", "", "apply a named preset from the manifest")
+	listPresets := flag.Bool("list-presets", false, "list presets available in the manifest and exit")
+	manifestURL := flag.String("manifest", "", "manifest URL (default "+DefaultManifestURL+")")
+	showVersion := flag.Bool("version", false, "print the version and exit")
 	fontSpec := flag.String("font", "", "font family name or .ttf path (default: Open Sans if installed, else Segoe UI)")
 	accent := flag.String("accent", "", "accent colour hex (default #0092CA)")
 	secondary := flag.String("secondary", "", "secondary text colour hex (default #6A7078)")
@@ -35,9 +40,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Flags override config only when explicitly set on the command line.
+	// Flags override config only when explicitly set on the command line. The same pass records
+	// which flags were explicit, so a preset can fill everything else without clobbering them.
+	explicit := map[string]bool{}
 	flag.Visit(func(f *flag.Flag) {
+		explicit[f.Name] = true
 		switch f.Name {
+		case "preset":
+			cfg.Preset = *preset
 		case "base":
 			cfg.Base = *base
 		case "name":
@@ -52,6 +62,45 @@ func main() {
 			cfg.Watch = *watch
 		}
 	})
+
+	if *showVersion {
+		fmt.Println(version)
+		return
+	}
+
+	// Presets are best-effort: a machine with no network must still render from local config.
+	if cfg.Preset != "" || *listPresets {
+		m, err := NewManifestFetcher(*manifestURL).Get()
+		switch {
+		case err != nil && *listPresets:
+			fmt.Fprintln(os.Stderr, "wallpaper-info:", err)
+			os.Exit(1)
+		case err != nil:
+			fmt.Fprintln(os.Stderr, "wallpaper-info: preset unavailable, using local config:", err)
+		default:
+			if *listPresets {
+				for _, p := range m.Presets {
+					fmt.Printf("%-16s %s\n", p.ID, p.Description)
+				}
+				return
+			}
+			if p, ok := m.Preset(cfg.Preset); !ok {
+				fmt.Fprintf(os.Stderr, "wallpaper-info: preset %q not in manifest, using local config\n", cfg.Preset)
+			} else {
+				cfg = ApplyPreset(cfg, p, explicit)
+				if !explicit["base"] && cfg.Base == "" {
+					if bg, ok := PickBackground(p.Backgrounds, ScreenWidth()); ok {
+						path, err := EnsureBackground(bg, &http.Client{Timeout: 60 * time.Second})
+						if err != nil {
+							fmt.Fprintln(os.Stderr, "wallpaper-info: background:", err)
+						} else {
+							cfg.Base = path
+						}
+					}
+				}
+			}
+		}
+	}
 
 	if *writeConfig {
 		if err := SaveConfig(cfgFile, cfg); err != nil {
@@ -68,7 +117,7 @@ func main() {
 		if *demo {
 			info = DemoInfo()
 		}
-		sig := info.Sig()
+		sig := info.SigWith(cfg)
 		if *out == "" && sig == lastSig {
 			return nil // nothing changed: skip the render + wallpaper set
 		}
@@ -83,11 +132,15 @@ func main() {
 		if err != nil {
 			return err
 		}
+		// An unknown corner falls back to the default rather than moving the panel somewhere odd.
+		corner, _ := ParseCorner(cfg.Layout.Corner)
 		img := Render(bg, info, RenderOpts{
 			Label:     label,
 			Font:      cfg.Font,
 			Accent:    cfg.Accent,
 			Secondary: cfg.Secondary,
+			Corner:    corner,
+			Rows:      cfg.Layout.Rows,
 		})
 		if *out != "" {
 			f, err := os.Create(*out)
@@ -115,3 +168,6 @@ func main() {
 		}
 	}
 }
+
+// version is stamped at build time: -ldflags "-X main.version=$TAG". "dev" never self-updates.
+var version = "dev"

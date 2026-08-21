@@ -139,3 +139,16 @@ func publicIP() string {
 	}
 	return "n/a"
 }
+
+// SigWith fingerprints the facts *and* the presentation, so a preset or layout change forces a
+// re-render even when nothing about the machine has changed.
+func (i Info) SigWith(cfg Config) string {
+	s := i.Sig() + "|preset=" + cfg.Preset +
+		"|corner=" + cfg.Layout.Corner +
+		"|accent=" + cfg.Accent + "|secondary=" + cfg.Secondary +
+		"|font=" + cfg.Font + "|name=" + cfg.Name + "|base=" + cfg.Base
+	for _, r := range cfg.Layout.Rows {
+		s += "|row=" + r
+	}
+	return s
+}
