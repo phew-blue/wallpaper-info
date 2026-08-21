@@ -1,0 +1,13 @@
+id          = "mono"
+name        = "Mono"
+description = "Greyscale accent, no WAN IP, top-left panel"
+accent      = "#C8CDD2"
+secondary   = "#6A7078"
+font        = "Open Sans"
+label       = "hostname"
+
+[layout]
+corner = "top-left"
+rows   = ["user", "os", "uptime", "cpu", "ram", "disk", "nics"]
+
+backgrounds = ["3840x2160", "2560x1440", "1920x1080"]

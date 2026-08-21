@@ -1,0 +1,14 @@
+id          = "phew-blue"
+name        = "phew-blue (default)"
+description = "Brand wallpaper, cyan accent, hostname label"
+accent      = "#0092CA"
+secondary   = "#6A7078"
+font        = "Open Sans"
+label       = "hostname"
+
+[layout]
+corner = "bottom-right"
+rows   = ["user", "os", "uptime", "cpu", "ram", "disk", "nics", "wan"]
+
+# Widths must match the directories under brand/assets/wallpapers/logo/png.
+backgrounds = ["3840x2160", "2560x1440", "1920x1080"]
