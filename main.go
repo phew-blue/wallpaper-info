@@ -89,14 +89,26 @@ func main() {
 				fmt.Fprintf(os.Stderr, "wallpaper-info: preset %q not in manifest, using local config\n", cfg.Preset)
 			} else {
 				cfg = ApplyPreset(cfg, p, explicit)
+				client := &http.Client{Timeout: 60 * time.Second}
 				if !explicit["base"] && cfg.Base == "" {
 					if bg, ok := PickBackground(p.Backgrounds, ScreenWidth()); ok {
-						path, err := EnsureBackground(bg, m.Base, &http.Client{Timeout: 60 * time.Second})
+						path, err := EnsureBackground(bg, m.Base, client)
 						if err != nil {
 							fmt.Fprintln(os.Stderr, "wallpaper-info: background:", err)
 						} else {
 							cfg.Base = path
 						}
+					}
+				}
+				// A preset that ships its font renders the same on every machine; without this a
+				// box with no Open Sans installed silently falls back to Segoe UI and looks
+				// different from its neighbour.
+				if !explicit["font"] && p.FontAsset != nil {
+					path, err := EnsureFont(*p.FontAsset, m.Base, client)
+					if err != nil {
+						fmt.Fprintln(os.Stderr, "wallpaper-info: font:", err)
+					} else {
+						cfg.Font = path
 					}
 				}
 				// Choosing a preset is a change to the machine's setup, not a one-off render, so

@@ -117,8 +117,17 @@ func diskInfo() string {
 // user32 itself is declared in wallpaper_windows.go.
 var procGetSystemMetrics = user32.NewProc("GetSystemMetrics")
 
-// ScreenWidth is the primary display's width in pixels, used to pick the nearest background.
+var procSetProcessDPIAware = user32.NewProc("SetProcessDPIAware")
+
+// ScreenWidth is the primary display's width in real pixels, used to pick the nearest background.
+//
+// SetProcessDPIAware must come first. Without it Windows virtualises the metrics for a
+// DPI-unaware process, so a 2560x1440 screen at 125% scaling reports 1920x1080 — we would then
+// pick the 1920 background and let Windows upscale it, giving a soft wallpaper with mis-sized
+// text. The call is idempotent and per-process.
 func ScreenWidth() int {
+	procSetProcessDPIAware.Call()
+
 	const smCXScreen = 0
 	r, _, _ := procGetSystemMetrics.Call(uintptr(smCXScreen))
 	if r == 0 {
