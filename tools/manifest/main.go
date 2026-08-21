@@ -37,6 +37,9 @@ type presetSource struct {
 	// BackgroundSet names the image set to use, so colour-variant presets can share one set of
 	// PNGs instead of shipping duplicates. Defaults to the preset id.
 	BackgroundSet string `toml:"background_set"`
+	// FontFile names a file in the fonts directory to ship with this preset, so the panel
+	// renders identically on machines that do not have the family installed.
+	FontFile string `toml:"font_file"`
 }
 
 // bgSet is the image set a preset draws on.
@@ -74,6 +77,7 @@ type preset struct {
 	Font        string       `json:"font"`
 	Label       string       `json:"label"`
 	Layout      layout       `json:"layout"`
+	FontAsset   *asset       `json:"font_asset,omitempty"`
 	Backgrounds []background `json:"backgrounds"`
 }
 
@@ -92,8 +96,11 @@ type manifest struct {
 // resolveBG returns the public URL and sha256 for one preset background.
 type resolveBG func(presetID, size string) (url, sha string)
 
+// resolveFont returns the published URL and sha256 for a preset's font file.
+type resolveFont func(file string) (url, sha string)
+
 // buildManifest renders the published JSON. It is separated from I/O so it can be tested.
-func buildManifest(presets []presetSource, version string, assets map[string]asset, resolve resolveBG) ([]byte, error) {
+func buildManifest(presets []presetSource, version string, assets map[string]asset, resolve resolveBG, resolveF resolveFont) ([]byte, error) {
 	m := manifest{Schema: 1, Latest: latest{Version: version, Exe: assets["exe"], Setup: assets["setup"]}}
 
 	for _, ps := range presets {
@@ -109,6 +116,11 @@ func buildManifest(presets []presetSource, version string, assets map[string]ass
 			}
 			url, sha := resolve(ps.bgSet(), size)
 			p.Backgrounds = append(p.Backgrounds, background{W: w, H: h, URL: url, SHA256: sha})
+		}
+		if ps.FontFile != "" && resolveF != nil {
+			if url, sha := resolveF(ps.FontFile); url != "" {
+				p.FontAsset = &asset{URL: url, SHA256: sha}
+			}
 		}
 		m.Presets = append(m.Presets, p)
 	}
@@ -208,6 +220,8 @@ func main() {
 	repo := flag.String("repo", "phew-blue/wallpaper-info", "GitHub repo hosting the release assets")
 	localMode := flag.Bool("local", false, "emit relative asset URLs for removable media (a USB manifest must work as E: or F:)")
 	stage := flag.String("stage", "", "copy referenced backgrounds here under their flat release-asset names")
+	fontDir := flag.String("fonts", "fonts", "directory of font files a preset may ship")
+	stageFonts := flag.String("stage-fonts", "", "copy referenced fonts here (defaults to -stage)")
 	out := flag.String("out", "", "write here instead of stdout")
 	flag.Parse()
 
@@ -252,6 +266,28 @@ func main() {
 		return url, sha
 	}
 
+	// Fonts ship with the preset so the panel does not depend on what happens to be installed.
+	// On removable media they sit in fonts\ next to the manifest; in a release they are flat
+	// assets like the backgrounds.
+	resolveF := func(file string) (string, string) {
+		var url string
+		if *localMode {
+			url = joinRef("fonts", file)
+		} else {
+			url = joinRef(rel, "font-"+file)
+		}
+		if *fontDir == "" {
+			return url, ""
+		}
+		sha, err := fileSHA256(filepath.Join(*fontDir, file))
+		if err != nil {
+			// Not fatal: the client falls back to a family name, then to Segoe UI.
+			fmt.Fprintf(os.Stderr, "manifest: warning: font %s: %v\n", file, err)
+			return url, ""
+		}
+		return url, sha
+	}
+
 	if *stage != "" && *bgDir != "" {
 		n, err := stageBackgrounds(presets, *bgDir, *stage)
 		if err != nil {
@@ -260,7 +296,21 @@ func main() {
 		fmt.Fprintf(os.Stderr, "manifest: staged %d background(s) in %s\n", n, *stage)
 	}
 
-	b, err := buildManifest(presets, *version, map[string]asset{"exe": exe, "setup": setup}, resolve)
+	if *fontDir != "" {
+		dest := *stageFonts
+		if dest == "" {
+			dest = *stage
+		}
+		if dest != "" {
+			n, err := stageFontFiles(presets, *fontDir, dest, *localMode)
+			if err != nil {
+				fatal(err)
+			}
+			fmt.Fprintf(os.Stderr, "manifest: staged %d font(s) in %s\n", n, dest)
+		}
+	}
+
+	b, err := buildManifest(presets, *version, map[string]asset{"exe": exe, "setup": setup}, resolve, resolveF)
 	if err != nil {
 		fatal(err)
 	}
@@ -287,4 +337,35 @@ func joinRef(base, name string) string {
 		return name
 	}
 	return base + "/" + name
+}
+
+// stageFontFiles copies every font a preset references into dir, ready for upload or for a USB.
+// Release assets are flat so they get a font- prefix; on removable media they keep their plain
+// name inside fonts\.
+func stageFontFiles(presets []presetSource, fontDir, dir string, local bool) (int, error) {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return 0, err
+	}
+	seen := map[string]bool{}
+	n := 0
+	for _, ps := range presets {
+		if ps.FontFile == "" || seen[ps.FontFile] {
+			continue
+		}
+		seen[ps.FontFile] = true
+		b, err := os.ReadFile(filepath.Join(fontDir, ps.FontFile))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "manifest: warning: %v\n", err)
+			continue
+		}
+		name := ps.FontFile
+		if !local {
+			name = "font-" + name
+		}
+		if err := os.WriteFile(filepath.Join(dir, name), b, 0o644); err != nil {
+			return n, err
+		}
+		n++
+	}
+	return n, nil
 }

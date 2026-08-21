@@ -21,7 +21,8 @@ func TestBuildManifestShape(t *testing.T) {
 		},
 		func(presetID, size string) (string, string) {
 			return "https://github.com/phew-blue/wallpaper-info/releases/download/v1/background-" + presetID + "-" + size + ".png", "cc"
-		})
+		},
+		func(file string) (string, string) { return "fonts/" + file, "ff" })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +45,7 @@ func TestBuildManifestShape(t *testing.T) {
 
 func TestBuildManifestRejectsBadBackgroundSize(t *testing.T) {
 	presets := []presetSource{{ID: "x", Backgrounds: []string{"not-a-size"}}}
-	if _, err := buildManifest(presets, "v1", nil, func(string, string) (string, string) { return "", "" }); err == nil {
+	if _, err := buildManifest(presets, "v1", nil, func(string, string) (string, string) { return "", "" }, nil); err == nil {
 		t.Error("want an error for a malformed background size")
 	}
 }

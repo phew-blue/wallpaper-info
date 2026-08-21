@@ -4,6 +4,8 @@ description = "Brand wallpaper, cyan accent, hostname label"
 accent      = "#0092CA"
 secondary   = "#6A7078"
 font        = "Open Sans"
+# Shipped with the preset so the panel looks the same on a machine without it installed.
+font_file   = "OpenSans-Regular.ttf"
 label       = "hostname"
 
 # Widths must match the directories under brand/assets/wallpapers/logo/png.

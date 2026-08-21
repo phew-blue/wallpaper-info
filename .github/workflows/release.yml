@@ -45,7 +45,7 @@ jobs:
       # The manifest describes assets uploaded in this same release, so it is generated first and
       # shipped alongside them: the release is the single source of truth, and nothing has to be
       # published to another repo.
-      - name: Generate manifest + stage backgrounds
+      - name: Generate manifest + stage backgrounds and fonts
         run: |
           set -euo pipefail
           VERSION="${GITHUB_REF_NAME#v}"
@@ -55,10 +55,15 @@ jobs:
             -setup "installer/Output/wallpaper-info-setup-${VERSION}.exe" \
             -backgrounds ./backgrounds \
             -stage "$RUNNER_TEMP/bg" \
+            -fonts ./fonts \
+            -stage-fonts "$RUNNER_TEMP/fonts" \
             -out manifest.json
           cat manifest.json
           cp "$RUNNER_TEMP"/bg/*.png .
-          ls -la background-*.png
+          # A preset that ships its font needs that font in the release too, or every client
+          # silently falls back to whatever the machine happens to have installed.
+          cp "$RUNNER_TEMP"/fonts/*.ttf .
+          ls -la background-*.png font-*.ttf
 
       - uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3
         with:
@@ -67,6 +72,7 @@ jobs:
             installer/Output/wallpaper-info-setup-*.exe
             manifest.json
             background-*.png
+            font-*.ttf
           generate_release_notes: true
 
       # Provisioned machines fetch these without credentials, so prove that actually works rather

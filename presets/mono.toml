@@ -4,6 +4,8 @@ description = "Greyscale accent, no WAN IP, top-left panel"
 accent      = "#C8CDD2"
 secondary   = "#6A7078"
 font        = "Open Sans"
+# Shipped with the preset so the panel looks the same on a machine without it installed.
+font_file   = "OpenSans-Regular.ttf"
 label       = "hostname"
 
 # mono is a colour variant of the same wallpaper, so it reuses phew-blue's image set

@@ -20,8 +20,9 @@ A single Go binary (flat `package main`, no subdirectories) that composites a sy
 - `tray_windows.go` / `tray_other.go` — `getlantern/systray` tray icon (embedded `.ico`); non-Windows returns an error so the caller falls back to headless watch
 - `update.go` + `update_windows.go` / `update_other.go` — `NeedsUpdate` version compare (platform-neutral, tested) and the silent installer hand-off
 - `console_windows.go` / `console_other.go` — frees a console Windows opened just for us, so the resident daemon shows no console window while CLI use still prints
-- `presets/*.toml` — authored preset sources (`background_set` lets a colour variant reuse another preset's images); `tools/manifest` turns them into the published `manifest.json` and stages the background assets
+- `presets/*.toml` — authored preset sources (`background_set` lets a colour variant reuse another preset's images, `font_file` ships a font with the preset); `tools/manifest` turns them into the published `manifest.json` and stages the background and font assets
 - `backgrounds/<set>/<WxH>.png` — brand wallpapers vendored so a release is self-contained
+- `fonts/*.ttf` — fonts a preset can ship, so the panel renders identically on a machine that has never had Open Sans installed
 - `installer/wallpaper-info.iss` — per-user Inno Setup installer, compiled by `iscc` under Wine on the Linux runner
 
 Windows is the real target; non-Windows builds exist so development works anywhere.
