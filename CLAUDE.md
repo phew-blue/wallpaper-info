@@ -23,7 +23,7 @@ A single Go binary (flat `package main`, no subdirectories) that composites a sy
 - `presets/*.toml` — authored preset sources (`background_set` lets a colour variant reuse another preset's images, `font_file` ships a font with the preset); `tools/manifest` turns them into the published `manifest.json` and stages the background and font assets
 - `backgrounds/<set>/<WxH>.png` — brand wallpapers vendored so a release is self-contained
 - `fonts/*.ttf` — fonts a preset can ship, so the panel renders identically on a machine that has never had Open Sans installed
-- `installer/wallpaper-info.iss` — per-user Inno Setup installer, compiled by `iscc` under Wine on the Linux runner
+- `installer/wallpaper-info.iss` — per-user Inno Setup installer, compiled by `iscc` under Wine on the Linux runner. `/PRESET=<id>` and `/MANIFEST=<url-or-path>` drive an unattended install; the latter points the post-install render at a USB or air-gapped catalogue
 
 Windows is the real target; non-Windows builds exist so development works anywhere.
 
@@ -42,7 +42,7 @@ go build -o wallpaper-info.exe .          # mise pins the Go toolchain (.mise.to
 ## Inputs / Outputs
 
 - **Inputs:** optional base PNG/JPG, TOML config, the published manifest (presets + latest version), flags (`--base`, `--name`, `--font`, `--accent`, `--secondary`, `--out`, `--watch`, `--tray`, `--preset`, `--list-presets`, `--manifest`, `--update`, `--version`, `--demo`, `--config`, `--write-config`)
-- **Outputs:** sets the wallpaper via a PNG written to `%LOCALAPPDATA%\wallpaper-info\wallpaper.png`, or writes `--out <png>` previews. `docs/preview.png` is the tracked sample; root-level `preview*.png` is gitignored scratch.
+- **Outputs:** sets the wallpaper via a PNG written to `%LOCALAPPDATA%\wallpaper-info\`, alternating between `wallpaper.png` and `wallpaper-alt.png` (see Gotchas), or writes `--out <png>` previews. `docs/preview.png` is the tracked sample; root-level `preview*.png` is gitignored scratch.
 - Defaults are phew-blue branding: accent `#0092CA`, secondary `#6A7078`, centered label = hostname (`-` hides it)
 
 ## Consumers
@@ -67,3 +67,7 @@ Tag `v*` → `.github/workflows/release.yml` runs the tests, builds `wallpaper-i
 - `Info.Sig()` is facts-only; `Info.SigWith(cfg)` adds preset + layout. `--watch`/`--tray` must use `SigWith`, or a preset switch renders nothing
 - Manifest/preset/background/update failures must always degrade (cache → local config), never fail a render
 - In `presets/*.toml`, every top-level key (`backgrounds`, `background_set`, …) must stay **above** the `[layout]` header — a key written after a table header belongs to that table, which once silently published presets with no backgrounds at all. `TestRealPresetsParse` guards this
+- **Never add `AppMutex` to `installer/wallpaper-info.iss`.** Inno checks it before `PrepareToInstall` and can only answer with a message box, so under `/VERYSILENT /SUPPRESSMSGBOXES` it defaults to Cancel: Setup exits 1 having installed nothing, turning every silent upgrade into a no-op. `PrepareToInstall`'s `taskkill` closes the running tray unattended instead
+- `SetWallpaper` alternates between `wallpaper.png` and `wallpaper-alt.png`, always writing the slot that is *not* currently set. Windows keeps the current wallpaper memory-mapped and rewriting that exact path fails with "a file with a user-mapped section open". `OurRenders()` lists both, and `baseCandidate` must reject both — guarding only one composites the panel onto its own render every other refresh
+- `ScreenWidth()` calls `SetProcessDPIAware` first. Without it a scaled display reports virtualised pixels (2560x1440 at 125% reads as 2048x1152) and the nearest-resolution rule picks the wrong background
+- Font *family* lookup must try the de-spaced name **with** a weight suffix: Google ships "Open Sans" as `OpenSans-Regular.ttf`. Miss that pairing and the render silently falls back to the 7x13 bitmap face — a tiny monospace panel. `TestResolveFontSpecFindsGoogleStyleFilenames` guards this
