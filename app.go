@@ -84,13 +84,23 @@ func (a *App) ApplyPresetByID(id string) error {
 	}
 
 	a.Cfg = ApplyPreset(a.Cfg, p, a.Explicit)
+	client := &http.Client{Timeout: 60 * time.Second}
 	if bg, ok := PickBackground(p.Backgrounds, ScreenWidth()); ok {
-		path, err := EnsureBackground(bg, m.Base, &http.Client{Timeout: 60 * time.Second})
+		path, err := EnsureBackground(bg, m.Base, client)
 		if err != nil {
 			// A missing background is not fatal: LoadBase falls back to the current wallpaper.
 			fmt.Fprintln(os.Stderr, "wallpaper-info: background:", err)
 		} else {
 			a.Cfg.Base = path
+		}
+	}
+	// Ship-the-font, so switching preset from the tray looks the same on any machine.
+	if p.FontAsset != nil {
+		path, err := EnsureFont(*p.FontAsset, m.Base, client)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "wallpaper-info: font:", err)
+		} else {
+			a.Cfg.Font = path
 		}
 	}
 	if err := SaveConfig(a.CfgPath, a.Cfg); err != nil {

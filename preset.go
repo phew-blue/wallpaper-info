@@ -71,9 +71,9 @@ func ApplyPreset(cfg Config, p Preset, explicit map[string]bool) Config {
 	return cfg
 }
 
-// BackgroundCachePath is content-addressed, so a changed preset naturally re-downloads and
-// superseded files can be deleted without bookkeeping.
-func BackgroundCachePath(sha string) string {
+// cachePath is content-addressed, so changed assets naturally re-fetch and superseded files can
+// be deleted without bookkeeping.
+func cachePath(kind, sha, ext string) string {
 	// LOCALAPPDATA is the Windows location and is honoured wherever it is set, which also lets
 	// tests redirect the cache into a temp dir.
 	base := os.Getenv("LOCALAPPDATA")
@@ -81,8 +81,16 @@ func BackgroundCachePath(sha string) string {
 		home, _ := os.UserHomeDir()
 		base = filepath.Join(home, ".cache")
 	}
-	return filepath.Join(base, "wallpaper-info", "backgrounds", sha+".png")
+	return filepath.Join(base, "wallpaper-info", kind, sha+ext)
 }
+
+// BackgroundCachePath is where a preset's wallpaper image is kept.
+func BackgroundCachePath(sha string) string { return cachePath("backgrounds", sha, ".png") }
+
+// FontCachePath is where a preset's font file is kept. Fonts are cached rather than required to
+// be installed: the panel must render identically on a machine that has never seen the brand
+// fonts, and the wallpaper keeps re-rendering long after any USB stick is gone.
+func FontCachePath(sha string) string { return cachePath("fonts", sha, ".ttf") }
 
 // VerifySHA256 reports whether the file at path hashes to want.
 func VerifySHA256(path, want string) error {
@@ -108,19 +116,33 @@ func VerifySHA256(path, want string) error {
 //
 // Anything that fails verification is deleted rather than cached, so a bad artifact cannot stick.
 func EnsureBackground(bg Background, base string, client *http.Client) (string, error) {
-	if bg.URL == "" || bg.SHA256 == "" {
-		return "", fmt.Errorf("background has no url or sha256")
+	return ensureCached(bg.URL, bg.SHA256, BackgroundCachePath(bg.SHA256), base, client)
+}
+
+// EnsureFont returns a local path for a preset's font file, fetching it if the cache misses.
+// Shipping the font with the preset is what makes the panel look the same everywhere: a machine
+// with no Open Sans installed would otherwise silently fall back to Segoe UI and render a
+// visibly different wallpaper from its neighbour.
+func EnsureFont(a Asset, base string, client *http.Client) (string, error) {
+	return ensureCached(a.URL, a.SHA256, FontCachePath(a.SHA256), base, client)
+}
+
+// ensureCached copies an asset into the content-addressed cache, from the network or from local
+// media, and verifies it. Anything failing verification is deleted rather than cached, so a bad
+// artifact cannot stick. Copying (rather than referencing in place) is deliberate: a USB stick
+// gets unplugged and the wallpaper has to keep rendering afterwards.
+func ensureCached(ref, sha, path, base string, client *http.Client) (string, error) {
+	if ref == "" || sha == "" {
+		return "", fmt.Errorf("asset has no url or sha256")
 	}
-	path := BackgroundCachePath(bg.SHA256)
-	if err := VerifySHA256(path, bg.SHA256); err == nil {
+	if err := VerifySHA256(path, sha); err == nil {
 		return path, nil
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return "", err
 	}
 
-	src := ResolveAssetURL(base, bg.URL)
-	rc, err := openAsset(src, client)
+	rc, err := openAsset(ResolveAssetURL(base, ref), client)
 	if err != nil {
 		return "", err
 	}
@@ -138,7 +160,7 @@ func EnsureBackground(bg Background, base string, client *http.Client) (string, 
 	}
 	f.Close()
 
-	if err := VerifySHA256(tmp, bg.SHA256); err != nil {
+	if err := VerifySHA256(tmp, sha); err != nil {
 		os.Remove(tmp)
 		return "", err
 	}

@@ -14,7 +14,7 @@ import (
 // LoadBase returns the background to composite onto: an explicit path, else the current desktop
 // wallpaper, else a solid brand-dark canvas so the tool always produces something.
 func LoadBase(path string) (image.Image, error) {
-	path = baseCandidate(path, currentWallpaperPath(), OutputPath())
+	path = baseCandidate(path, currentWallpaperPath(), OurRenders())
 	if path != "" {
 		if f, err := os.Open(path); err == nil {
 			defer f.Close()
@@ -29,15 +29,18 @@ func LoadBase(path string) (image.Image, error) {
 }
 
 // baseCandidate decides which file to composite onto. An explicit path always wins. The
-// current desktop wallpaper is used only when it is not our own previous render —
+// current desktop wallpaper is used only when it is not one of our own previous renders —
 // compositing onto that would stack the info panel on itself at every refresh, which is
-// why the old provisioning shortcut had to pin an explicit --base.
-func baseCandidate(explicit, current, output string) string {
+// why the old provisioning shortcut had to pin an explicit --base. ours holds every slot
+// SetWallpaper writes to, not just one: it alternates between them (see OurRenders).
+func baseCandidate(explicit, current string, ours []string) string {
 	if explicit != "" {
 		return explicit
 	}
-	if output != "" && samePath(current, output) {
-		return ""
+	for _, o := range ours {
+		if samePath(current, o) {
+			return ""
+		}
 	}
 	return current
 }

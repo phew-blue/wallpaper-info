@@ -37,14 +37,17 @@ type Background struct {
 
 // Preset is a named look: colours, font, label rule, layout, and background choices.
 type Preset struct {
-	ID          string       `json:"id"`
-	Name        string       `json:"name"`
-	Description string       `json:"description"`
-	Accent      string       `json:"accent"`
-	Secondary   string       `json:"secondary"`
-	Font        string       `json:"font"`
-	Label       string       `json:"label"` // "hostname" | "none" | a literal string
-	Layout      Layout       `json:"layout"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Accent      string `json:"accent"`
+	Secondary   string `json:"secondary"`
+	Font        string `json:"font"`
+	Label       string `json:"label"` // "hostname" | "none" | a literal string
+	Layout      Layout `json:"layout"`
+	// FontAsset ships the preset's font so the panel renders identically on machines that
+	// do not have it installed. Optional: without it, Font is treated as a family name.
+	FontAsset   *Asset       `json:"font_asset,omitempty"`
 	Backgrounds []Background `json:"backgrounds"`
 }
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -57,6 +58,31 @@ func TestParseCorner(t *testing.T) {
 		got, ok := ParseCorner(tc.in)
 		if ok != tc.ok || (ok && got != tc.want) {
 			t.Errorf("ParseCorner(%q) = (%v, %v), want (%v, %v)", tc.in, got, ok, tc.want, tc.ok)
+		}
+	}
+}
+
+// "Open Sans" is installed as OpenSans-Regular.ttf: the space is dropped AND a weight suffix is
+// added. Trying only "OpenSans.ttf" or "Open Sans-Regular.ttf" misses it, which silently
+// downgraded the whole panel to the 7x13 bitmap fallback on a machine that had the font.
+func TestResolveFontSpecFindsGoogleStyleFilenames(t *testing.T) {
+	for _, tc := range []struct {
+		spec, want string
+		bold       bool
+	}{
+		{spec: "Open Sans", want: "OpenSans-Regular.ttf"},
+		{spec: "Open Sans", want: "OpenSans-SemiBold.ttf", bold: true},
+	} {
+		var found bool
+		for _, c := range resolveFontSpec(tc.spec, tc.bold) {
+			if filepath.Base(c) == tc.want {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("resolveFontSpec(%q, bold=%v) never offers %s; got %v",
+				tc.spec, tc.bold, tc.want, resolveFontSpec(tc.spec, tc.bold))
 		}
 	}
 }

@@ -12,8 +12,8 @@ import (
 )
 
 var (
-	user32        = syscall.NewLazyDLL("user32.dll")
-	procSPI       = user32.NewProc("SystemParametersInfoW")
+	user32  = syscall.NewLazyDLL("user32.dll")
+	procSPI = user32.NewProc("SystemParametersInfoW")
 )
 
 const (
@@ -32,10 +32,19 @@ func currentWallpaperPath() string {
 	return syscall.UTF16ToString(buf)
 }
 
-// OutputPath is where the rendered wallpaper is written. LoadBase must never use it as a
-// background: compositing onto our own output stacks text on text every refresh.
-func OutputPath() string {
-	return filepath.Join(os.Getenv("LOCALAPPDATA"), "wallpaper-info", "wallpaper.png")
+// OurRenders lists every path SetWallpaper may write to. LoadBase must never composite onto
+// any of them: stacking the info panel on our own previous render doubles the text at every
+// refresh.
+//
+// There are two, because Windows keeps the *current* wallpaper file memory-mapped and rewriting
+// that exact path fails with "the requested operation cannot be performed on a file with a
+// user-mapped section open". Alternating means the slot we write is never the mapped one.
+func OurRenders() []string {
+	dir := filepath.Join(os.Getenv("LOCALAPPDATA"), "wallpaper-info")
+	return []string{
+		filepath.Join(dir, "wallpaper.png"),
+		filepath.Join(dir, "wallpaper-alt.png"),
+	}
 }
 
 func SetWallpaper(img image.Image) error {
@@ -43,7 +52,13 @@ func SetWallpaper(img image.Image) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	out := filepath.Join(dir, "wallpaper.png")
+
+	current := currentWallpaperPath()
+	out := OurRenders()[0]
+	if samePath(current, out) {
+		out = OurRenders()[1]
+	}
+
 	f, err := os.Create(out)
 	if err != nil {
 		return err
@@ -53,6 +68,7 @@ func SetWallpaper(img image.Image) error {
 		return err
 	}
 	f.Close()
+
 	p, _ := syscall.UTF16PtrFromString(out)
 	r, _, err := procSPI.Call(spiSetDeskWallpaper, 0, uintptr(unsafe.Pointer(p)), spifUpdateINIFile|spifSendChange)
 	if r == 0 {

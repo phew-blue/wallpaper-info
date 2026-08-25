@@ -11,23 +11,29 @@ import (
 // shortcut had to pin an explicit --base.
 func TestBaseCandidateRejectsOurOwnOutput(t *testing.T) {
 	out := `C:\Users\x\AppData\Local\wallpaper-info\wallpaper.png`
+	// SetWallpaper alternates between two slots, so BOTH have to be rejected -- guarding only
+	// the one we happened to write last would composite onto the other one every other refresh.
+	alt := `C:\Users\x\AppData\Local\wallpaper-info\wallpaper-alt.png`
+	ours := []string{out, alt}
 
 	for _, tc := range []struct {
-		name                      string
-		explicit, current, output string
-		want                      string
+		name              string
+		explicit, current string
+		ours              []string
+		want              string
 	}{
-		{"current is our own render", "", out, out, ""},
-		{"case differs, still ours", "", `C:\USERS\X\APPDATA\LOCAL\WALLPAPER-INFO\WALLPAPER.PNG`, out, ""},
-		{"a real user wallpaper is fine", "", `C:\pics\beach.jpg`, out, `C:\pics\beach.jpg`},
-		{"explicit always wins", `C:\brand\bg.png`, out, out, `C:\brand\bg.png`},
-		{"explicit wins even if it is our render", out, out, out, out},
-		{"no current wallpaper", "", "", out, ""},
-		{"no output path (non-Windows)", "", `C:\pics\beach.jpg`, "", `C:\pics\beach.jpg`},
+		{"current is our own render", "", out, ours, ""},
+		{"current is our alternate render", "", alt, ours, ""},
+		{"case differs, still ours", "", `C:\USERS\X\APPDATA\LOCAL\WALLPAPER-INFO\WALLPAPER.PNG`, ours, ""},
+		{"a real user wallpaper is fine", "", `C:\pics\beach.jpg`, ours, `C:\pics\beach.jpg`},
+		{"explicit always wins", `C:\brand\bg.png`, out, ours, `C:\brand\bg.png`},
+		{"explicit wins even if it is our render", out, out, ours, out},
+		{"no current wallpaper", "", "", ours, ""},
+		{"no output paths (non-Windows)", "", `C:\pics\beach.jpg`, nil, `C:\pics\beach.jpg`},
 	} {
-		if got := baseCandidate(tc.explicit, tc.current, tc.output); got != tc.want {
+		if got := baseCandidate(tc.explicit, tc.current, tc.ours); got != tc.want {
 			t.Errorf("%s: baseCandidate(%q,%q,%q) = %q, want %q",
-				tc.name, tc.explicit, tc.current, tc.output, got, tc.want)
+				tc.name, tc.explicit, tc.current, tc.ours, got, tc.want)
 		}
 	}
 }

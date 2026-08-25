@@ -41,10 +41,14 @@ WizardStyle=modern
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayIcon={app}\{#MyAppExeName}
 ; Every provisioned machine already runs a resident copy, and self-update runs this installer
-; while the tray process is alive. Windows will not overwrite a locked .exe, so without these
-; an upgrade silently does nothing at all. AppMutex matches InstanceMutexName in
-; instance_windows.go; PrepareToInstall below is the belt-and-braces force close.
-AppMutex=phew-blue-wallpaper-info
+; while the tray process is alive. Windows will not overwrite a locked .exe, so the running
+; copy has to go before the file step.
+;
+; Deliberately NO AppMutex. Inno checks it before PrepareToInstall and can only respond with a
+; message box, so under /SUPPRESSMSGBOXES it defaults to Cancel and Setup aborts with exit 1
+; having installed nothing -- i.e. it turned every silent upgrade into a silent no-op, the
+; exact failure it was added to prevent. PrepareToInstall below does the job instead: it runs
+; unattended, and taskkill closes a tray app with no main window, which Restart Manager cannot.
 CloseApplications=force
 RestartApplications=no
 
@@ -61,7 +65,7 @@ Name: "{userstartup}\phew-blue wallpaper-info"; Filename: "{app}\{#MyAppExeName}
 
 [Run]
 ; Apply the chosen preset and paint the wallpaper immediately...
-Filename: "{app}\{#MyAppExeName}"; Parameters: "--preset {code:GetPreset}"; Flags: runhidden waituntilterminated
+Filename: "{app}\{#MyAppExeName}"; Parameters: "--preset {code:GetPreset}{code:GetManifestArg}"; Flags: runhidden waituntilterminated
 ; ...then leave the tray running (unticked by default in silent installs).
 Filename: "{app}\{#MyAppExeName}"; Parameters: "--tray"; Flags: runhidden nowait postinstall; Description: "Start wallpaper-info now"
 
@@ -92,6 +96,20 @@ begin
   PresetPage.Add('phew-blue');
   PresetPage.Add('mono');
   PresetPage.SelectedValueIndex := 0;
+end;
+
+// /MANIFEST=<url-or-path> points the one-shot preset render at a catalogue other than the
+// published one — a USB stick or an air-gapped share. Only this first render needs it: the
+// render persists the resolved preset, background and font into the config, so the Startup
+// tray process still looks right long after the stick is unplugged.
+function GetManifestArg(Param: string): string;
+var M: string;
+begin
+  M := ExpandConstant('{param:MANIFEST|}');
+  if M = '' then
+    Result := ''
+  else
+    Result := ' --manifest "' + M + '"';
 end;
 
 // /PRESET=<id> supports unattended installs from provisioning; the wizard page is the
