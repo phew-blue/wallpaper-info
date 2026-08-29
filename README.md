@@ -31,6 +31,11 @@ Invoke-WebRequest $m.latest.setup.url -OutFile $env:TEMP\setup.exe
 **Check for updates**, **Open config**, **Quit**. If the tray cannot start it falls back
 to a headless refresh loop rather than leaving the desktop unpainted.
 
+A resident tray also checks for a new release on its own — five minutes after logon, then
+once a day — and installs it silently, so a machine nobody touches does not drift. The menu
+item is the same check on demand. Both read past the manifest cache, so the answer is never
+a day old.
+
 ### Presets
 
 Presets are published at <https://github.com/phew-blue/wallpaper-info/releases/latest/download/manifest.json> and carry

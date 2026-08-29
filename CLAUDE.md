@@ -18,7 +18,7 @@ A single Go binary (flat `package main`, no subdirectories) that composites a sy
 - `preset.go` — applies a preset to `Config`, picks the nearest-resolution background, caches it content-addressed by sha256
 - `demo.go` — `DemoInfo()`, the synthetic facts behind `--demo`
 - `tray_windows.go` / `tray_other.go` — `getlantern/systray` tray icon (embedded `.ico`); non-Windows returns an error so the caller falls back to headless watch
-- `update.go` + `update_windows.go` / `update_other.go` — `NeedsUpdate` version compare (platform-neutral, tested) and the silent installer hand-off
+- `update.go` + `update_windows.go` / `update_other.go` — `NeedsUpdate` version compare (platform-neutral, tested) and the silent installer hand-off. `CheckAndUpdate` forces a network manifest read (a copy of the fetcher with `TTL` 0) so a scheduled check is never answered from a day-old cache; the tray runs it 5 min after start and daily thereafter
 - `console_windows.go` / `console_other.go` — frees a console Windows opened just for us, so the resident daemon shows no console window while CLI use still prints
 - `presets/*.toml` — authored preset sources (`background_set` lets a colour variant reuse another preset's images, `font_file` ships a font with the preset); `tools/manifest` turns them into the published `manifest.json` and stages the background and font assets
 - `backgrounds/<set>/<WxH>.png` — brand wallpapers vendored so a release is self-contained

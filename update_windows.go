@@ -15,7 +15,13 @@ import (
 // mirrors lexi's proven path: download, verify, run the installer silently, then exit so the
 // installer can replace this running exe and restart it.
 func CheckAndUpdate(app *App, userInitiated bool) error {
-	m, err := app.Fetcher.Get()
+	// A scheduled check must not be answered from a day-old cache -- that is exactly the window
+	// in which a new release appears. TTL 0 forces the network, and Get still falls back to the
+	// cache when the network is unreachable, so an offline machine degrades to "no update"
+	// rather than to an error.
+	fresh := app.Fetcher
+	fresh.TTL = 0
+	m, err := fresh.Get()
 	if err != nil {
 		return err
 	}
