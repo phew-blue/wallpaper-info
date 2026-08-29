@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"time"
 
 	"github.com/getlantern/systray"
 )
@@ -75,4 +76,26 @@ func onTrayReady(app *App) {
 
 	// In tray mode the icon owns the refresh loop, replacing the bare --watch sleep loop.
 	go app.Watch()
+	go autoUpdate(app)
+}
+
+// autoUpdateDelay is how long the tray waits before its first update check. The tray starts at
+// logon, when the network stack is often not up yet, so checking immediately would make a
+// failed check the normal case rather than the exception.
+const autoUpdateDelay = 5 * time.Minute
+
+// autoUpdateInterval is how often a resident tray re-checks after that. A desktop that stays
+// logged on for weeks otherwise never picks up a release unless someone opens the menu.
+const autoUpdateInterval = 24 * time.Hour
+
+// autoUpdate installs new releases in the background for the life of the tray process. A
+// successful update never returns: CheckAndUpdate hands off to the installer and exits the
+// process so the running exe can be replaced. Errors are logged and the loop continues -- an
+// unreachable GitHub must not stop a desktop from refreshing its wallpaper.
+func autoUpdate(app *App) {
+	for time.Sleep(autoUpdateDelay); ; time.Sleep(autoUpdateInterval) {
+		if err := CheckAndUpdate(app, false); err != nil {
+			fmt.Fprintln(os.Stderr, "wallpaper-info: auto-update:", err)
+		}
+	}
 }
