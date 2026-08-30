@@ -30,7 +30,7 @@ AppUpdatesURL={#MyAppURL}
 ; Per-user: nothing here needs elevation, and installing under LOCALAPPDATA lets the
 ; running exe be replaced during self-update (the same reason lexi installs there).
 PrivilegesRequired=lowest
-DefaultDirName={localappdata}\wallpaper-info
+DefaultDirName={localappdata}\Phew Blue\wallpaper-info
 DisableDirPage=yes
 DefaultGroupName={#MyAppName}
 OutputDir=Output
@@ -70,7 +70,9 @@ Filename: "{app}\{#MyAppExeName}"; Parameters: "--preset {code:GetPreset}{code:G
 Filename: "{app}\{#MyAppExeName}"; Parameters: "--tray"; Flags: runhidden nowait postinstall; Description: "Start wallpaper-info now"
 
 [UninstallDelete]
+Type: filesandordirs; Name: "{localappdata}\Phew Blue\wallpaper-info"
 Type: filesandordirs; Name: "{localappdata}\wallpaper-info"
+Type: dirifempty;      Name: "{localappdata}\Phew Blue"
 
 [Code]
 var PresetPage: TInputOptionWizardPage;
