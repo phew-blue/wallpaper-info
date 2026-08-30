@@ -16,6 +16,12 @@ watch     = 0           # re-render every N minutes (0 = run once)
 # defaults < preset < this file < command-line flags.
 preset = ""          # e.g. "phew-blue"; "" = no preset, purely local config
 
+# Where presets are looked up. A URL or a local path; "" = the published catalogue above.
+# Set by the USB installer to a copy of the stick's catalogue, whose presets are licensed for
+# internal use and are deliberately not published. Update checks ignore this and always ask the
+# published release, so a machine pointed at a local catalogue still updates itself.
+manifest = ""        # e.g. "C:\\Users\\you\\AppData\\Local\\Phew Blue\\wallpaper-info\\manifest.json"
+
 [layout]
 # bottom-right (default) | bottom-left | top-right | top-left
 corner = "bottom-right"

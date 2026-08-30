@@ -28,6 +28,15 @@ jobs:
           GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath \
             -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" \
             -o wallpaper-info-windows-amd64.exe .
+          # Same source, linked for the GUI subsystem. Windows creates a console window for a
+          # console-subsystem exe launched from a shortcut before any of our code runs, so the
+          # Startup entry can only be silent if the binary it points at never asks for one.
+          # The console build stays the one you type at a prompt: a shell reads the subsystem
+          # field to decide whether to wait for the process and wire up its stdout, so a GUI
+          # build makes --version and --list-presets useless from a shell.
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath \
+            -ldflags "-s -w -H windowsgui -X main.version=${GITHUB_REF_NAME}" \
+            -o wallpaper-infow-windows-amd64.exe .
 
       - name: Setup Wine + Inno Setup
         id: inno
@@ -38,6 +47,7 @@ jobs:
           set -euo pipefail
           VERSION="${GITHUB_REF_NAME#v}"
           cp wallpaper-info-windows-amd64.exe installer/wallpaper-info.exe
+          cp wallpaper-infow-windows-amd64.exe installer/wallpaper-infow.exe
           xvfb-run -a wine "${{ steps.inno.outputs.iscc }}" \
             "/DMyAppVersion=${VERSION}" installer/wallpaper-info.iss
           ls -la installer/Output/
@@ -69,6 +79,7 @@ jobs:
         with:
           files: |
             wallpaper-info-windows-amd64.exe
+            wallpaper-infow-windows-amd64.exe
             installer/Output/wallpaper-info-setup-*.exe
             manifest.json
             background-*.png

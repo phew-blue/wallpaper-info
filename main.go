@@ -41,6 +41,18 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Where presets come from: an explicit --manifest wins, then whatever the config names, then
+	// the published catalogue. A machine provisioned from a USB stick has the stick's catalogue
+	// copied locally and named here, because the presets on it are licensed for internal use and
+	// are deliberately not published — without this it would look its own preset up in the public
+	// catalogue every logon, fail to find it, and fall back to bare local config.
+	//
+	// This is the *preset* source only. Update checks deliberately ignore it: see CheckAndUpdate.
+	presetSource := *manifestURL
+	if presetSource == "" {
+		presetSource = cfg.Manifest
+	}
+
 	// What the machine was wearing before this run, captured before --preset overwrites it: it
 	// is the only way to tell a preset *switch* (whose cached background is now stale) from a
 	// re-run of the preset already configured.
@@ -76,7 +88,7 @@ func main() {
 
 	// Presets are best-effort: a machine with no network must still render from local config.
 	if cfg.Preset != "" || *listPresets {
-		m, err := NewManifestFetcher(*manifestURL).Get()
+		m, err := NewManifestFetcher(presetSource).Get()
 		switch {
 		case err != nil && *listPresets:
 			fmt.Fprintln(os.Stderr, "wallpaper-info:", err)
@@ -155,7 +167,7 @@ func main() {
 		Demo:     *demo,
 		Out:      *out,
 		Explicit: explicit,
-		Fetcher:  NewManifestFetcher(*manifestURL),
+		Fetcher:  NewManifestFetcher(presetSource),
 	}
 
 	if *update {
