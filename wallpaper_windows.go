@@ -40,7 +40,7 @@ func currentWallpaperPath() string {
 // that exact path fails with "the requested operation cannot be performed on a file with a
 // user-mapped section open". Alternating means the slot we write is never the mapped one.
 func OurRenders() []string {
-	dir := filepath.Join(os.Getenv("LOCALAPPDATA"), "wallpaper-info")
+	dir := DataDir()
 	return []string{
 		filepath.Join(dir, "wallpaper.png"),
 		filepath.Join(dir, "wallpaper-alt.png"),
@@ -48,7 +48,7 @@ func OurRenders() []string {
 }
 
 func SetWallpaper(img image.Image) error {
-	dir := filepath.Join(os.Getenv("LOCALAPPDATA"), "wallpaper-info")
+	dir := DataDir()
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}

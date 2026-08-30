@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 )
@@ -95,13 +94,7 @@ func (m Manifest) Preset(id string) (Preset, bool) {
 
 // ManifestCachePath is where the last good manifest is kept between runs.
 func ManifestCachePath() string {
-	if runtime.GOOS == "windows" {
-		if la := os.Getenv("LOCALAPPDATA"); la != "" {
-			return filepath.Join(la, "wallpaper-info", "manifest.json")
-		}
-	}
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".cache", "wallpaper-info", "manifest.json")
+	return filepath.Join(DataDir(), "manifest.json")
 }
 
 // isLocalSource reports whether a manifest or asset reference points at the filesystem

@@ -7,7 +7,7 @@ A single Go binary (flat `package main`, no subdirectories) that composites a sy
 ## How It Works
 
 - `main.go` — flag parsing, config merge (flags override config only when explicitly set via `flag.Visit`), the render-or-skip loop
-- `config.go` — TOML config (`BurntSushi/toml`) at `%APPDATA%\wallpaper-info\config.toml` (Windows) or `~/.config/wallpaper-info/config.toml`; `--write-config` persists the current effective settings
+- `config.go` — TOML config (`BurntSushi/toml`) at `%APPDATA%\Phew Blue\wallpaper-info\config.toml` (Windows) or `~/.config/wallpaper-info/config.toml`; `--write-config` persists the current effective settings
 - `info.go` — cross-platform facts (user, host, NICs, public IP via `api.ipify.org`, cached 15 min); `Info.Sig()` fingerprints everything shown so `--watch` skips re-rendering when nothing changed
 - `info_windows.go` / `info_other.go` — platform facts (registry + kernel32 syscalls on Windows; non-Windows returns stubs)
 - `base.go` — background selection: explicit `--base` path → current wallpaper → solid brand-dark canvas
@@ -42,7 +42,7 @@ go build -o wallpaper-info.exe .          # mise pins the Go toolchain (.mise.to
 ## Inputs / Outputs
 
 - **Inputs:** optional base PNG/JPG, TOML config, the published manifest (presets + latest version), flags (`--base`, `--name`, `--font`, `--accent`, `--secondary`, `--out`, `--watch`, `--tray`, `--preset`, `--list-presets`, `--manifest`, `--update`, `--version`, `--demo`, `--config`, `--write-config`)
-- **Outputs:** sets the wallpaper via a PNG written to `%LOCALAPPDATA%\wallpaper-info\`, alternating between `wallpaper.png` and `wallpaper-alt.png` (see Gotchas), or writes `--out <png>` previews. `docs/preview.png` is the tracked sample; root-level `preview*.png` is gitignored scratch.
+- **Outputs:** sets the wallpaper via a PNG written to `%LOCALAPPDATA%\Phew Blue\wallpaper-info\`, alternating between `wallpaper.png` and `wallpaper-alt.png` (see Gotchas), or writes `--out <png>` previews. `docs/preview.png` is the tracked sample; root-level `preview*.png` is gitignored scratch.
 - Defaults are phew-blue branding: accent `#0092CA`, secondary `#6A7078`, centered label = hostname (`-` hides it)
 
 ## Consumers

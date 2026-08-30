@@ -74,14 +74,7 @@ func ApplyPreset(cfg Config, p Preset, explicit map[string]bool) Config {
 // cachePath is content-addressed, so changed assets naturally re-fetch and superseded files can
 // be deleted without bookkeeping.
 func cachePath(kind, sha, ext string) string {
-	// LOCALAPPDATA is the Windows location and is honoured wherever it is set, which also lets
-	// tests redirect the cache into a temp dir.
-	base := os.Getenv("LOCALAPPDATA")
-	if base == "" {
-		home, _ := os.UserHomeDir()
-		base = filepath.Join(home, ".cache")
-	}
-	return filepath.Join(base, "wallpaper-info", kind, sha+ext)
+	return filepath.Join(DataDir(), kind, sha+ext)
 }
 
 // BackgroundCachePath is where a preset's wallpaper image is kept.
