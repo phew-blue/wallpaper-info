@@ -41,18 +41,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Where presets come from: an explicit --manifest wins, then whatever the config names, then
-	// the published catalogue. A machine provisioned from a USB stick has the stick's catalogue
-	// copied locally and named here, because the presets on it are licensed for internal use and
-	// are deliberately not published — without this it would look its own preset up in the public
-	// catalogue every logon, fail to find it, and fall back to bare local config.
-	//
-	// This is the *preset* source only. Update checks deliberately ignore it: see CheckAndUpdate.
-	presetSource := *manifestURL
-	if presetSource == "" {
-		presetSource = cfg.Manifest
-	}
-
 	// What the machine was wearing before this run, captured before --preset overwrites it: it
 	// is the only way to tell a preset *switch* (whose cached background is now stale) from a
 	// re-run of the preset already configured.
@@ -78,8 +66,20 @@ func main() {
 			cfg.Secondary = *secondary
 		case "watch":
 			cfg.Watch = *watch
+		case "manifest":
+			// Persisted like any other setting, so the installer can point a machine at its own
+			// catalogue once and have every later run follow it. A machine provisioned from a
+			// USB stick needs this: the presets on the stick are licensed for internal use and
+			// deliberately not published, so looking them up in the public catalogue can only
+			// ever fail.
+			cfg.Manifest = *manifestURL
 		}
 	})
+
+	// Where presets are looked up. This is the *preset* source only — update checks deliberately
+	// ignore it and always ask the published release, or a machine following a frozen catalogue
+	// would never update again. See CheckAndUpdate.
+	presetSource := cfg.Manifest
 
 	if *showVersion {
 		fmt.Println(version)
