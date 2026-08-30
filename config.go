@@ -25,6 +25,7 @@ type Config struct {
 	Secondary string `toml:"secondary"` // detail-line colour
 	Watch     int    `toml:"watch"`     // refresh every N minutes (0 = once)
 	Preset    string `toml:"preset"`    // id of the last applied preset ("" = purely local config)
+	Manifest  string `toml:"manifest"`  // preset catalogue: URL or local path ("" = the published one)
 	Layout    Layout `toml:"layout"`
 }
 

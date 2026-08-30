@@ -15,6 +15,10 @@
 #define MyAppPublisher "Phew Blue"
 #define MyAppURL       "https://phew.blue/software"
 #define MyAppExeName   "wallpaper-info.exe"
+; The same program linked for the GUI subsystem. Everything launched unattended -- the shortcuts
+; and the tray -- uses this one, because Windows gives a console-subsystem exe a console window
+; before any of its code runs, and a shortcut has no way to ask for that window to be hidden.
+#define MyAppExeNameW  "wallpaper-infow.exe"
 
 [Setup]
 AppId={{7C1B6A54-2E4D-4C2F-9E1A-0B7D3F5A9C21}
@@ -54,20 +58,21 @@ RestartApplications=no
 
 [Files]
 Source: "wallpaper-info.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "wallpaper-infow.exe"; DestDir: "{app}"; Flags: ignoreversion
 
 [Tasks]
 Name: "startup"; Description: "Run wallpaper-info at logon (tray icon)"; GroupDescription: "Startup"
 
 [Icons]
-Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--tray"
+Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeNameW}"; Parameters: "--tray"
 ; Startup shortcut: one long-lived tray process that refreshes the wallpaper on a timer.
-Name: "{userstartup}\phew-blue wallpaper-info"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--tray"; Tasks: startup
+Name: "{userstartup}\phew-blue wallpaper-info"; Filename: "{app}\{#MyAppExeNameW}"; Parameters: "--tray"; Tasks: startup
 
 [Run]
 ; Apply the chosen preset and paint the wallpaper immediately...
 Filename: "{app}\{#MyAppExeName}"; Parameters: "--preset {code:GetPreset}{code:GetManifestArg}"; Flags: runhidden waituntilterminated
 ; ...then leave the tray running (unticked by default in silent installs).
-Filename: "{app}\{#MyAppExeName}"; Parameters: "--tray"; Flags: runhidden nowait postinstall; Description: "Start wallpaper-info now"
+Filename: "{app}\{#MyAppExeNameW}"; Parameters: "--tray"; Flags: runhidden nowait postinstall; Description: "Start wallpaper-info now"
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{localappdata}\Phew Blue\wallpaper-info"
@@ -85,6 +90,10 @@ function PrepareToInstall(var NeedsRestart: Boolean): String;
 var ResultCode: Integer;
 begin
   Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM {#MyAppExeName}', '',
+       SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  // The resident tray is the GUI-subsystem build, so killing only the console one would leave it
+  // holding {app} open and every upgrade would silently install nothing.
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM {#MyAppExeNameW}', '',
        SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Sleep(500); // let the handle actually drop before Setup opens the file for writing
   Result := '';

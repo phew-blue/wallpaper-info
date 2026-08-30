@@ -66,8 +66,20 @@ func main() {
 			cfg.Secondary = *secondary
 		case "watch":
 			cfg.Watch = *watch
+		case "manifest":
+			// Persisted like any other setting, so the installer can point a machine at its own
+			// catalogue once and have every later run follow it. A machine provisioned from a
+			// USB stick needs this: the presets on the stick are licensed for internal use and
+			// deliberately not published, so looking them up in the public catalogue can only
+			// ever fail.
+			cfg.Manifest = *manifestURL
 		}
 	})
+
+	// Where presets are looked up. This is the *preset* source only — update checks deliberately
+	// ignore it and always ask the published release, or a machine following a frozen catalogue
+	// would never update again. See CheckAndUpdate.
+	presetSource := cfg.Manifest
 
 	if *showVersion {
 		fmt.Println(version)
@@ -76,7 +88,7 @@ func main() {
 
 	// Presets are best-effort: a machine with no network must still render from local config.
 	if cfg.Preset != "" || *listPresets {
-		m, err := NewManifestFetcher(*manifestURL).Get()
+		m, err := NewManifestFetcher(presetSource).Get()
 		switch {
 		case err != nil && *listPresets:
 			fmt.Fprintln(os.Stderr, "wallpaper-info:", err)
@@ -155,7 +167,7 @@ func main() {
 		Demo:     *demo,
 		Out:      *out,
 		Explicit: explicit,
-		Fetcher:  NewManifestFetcher(*manifestURL),
+		Fetcher:  NewManifestFetcher(presetSource),
 	}
 
 	if *update {

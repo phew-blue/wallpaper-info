@@ -7,7 +7,7 @@ A single Go binary (flat `package main`, no subdirectories) that composites a sy
 ## How It Works
 
 - `main.go` — flag parsing, config merge (flags override config only when explicitly set via `flag.Visit`), the render-or-skip loop
-- `config.go` — TOML config (`BurntSushi/toml`) at `%APPDATA%\Phew Blue\wallpaper-info\config.toml` (Windows) or `~/.config/wallpaper-info/config.toml`; `--write-config` persists the current effective settings
+- `config.go` — TOML config (`BurntSushi/toml`) at `%APPDATA%\Phew Blue\wallpaper-info\config.toml` (Windows) or `~/.config/wallpaper-info/config.toml`; `--write-config` persists the current effective settings. `manifest` names the **preset** catalogue (URL or local path) for a machine that does not use the published one — update checks ignore it
 - `info.go` — cross-platform facts (user, host, NICs, public IP via `api.ipify.org`, cached 15 min); `Info.Sig()` fingerprints everything shown so `--watch` skips re-rendering when nothing changed
 - `info_windows.go` / `info_other.go` — platform facts (registry + kernel32 syscalls on Windows; non-Windows returns stubs)
 - `base.go` — background selection: explicit `--base` path → current wallpaper → solid brand-dark canvas
@@ -37,7 +37,12 @@ go build -o wallpaper-info.exe .          # mise pins the Go toolchain (.mise.to
 ./wallpaper-info.exe --watch 30           # re-render every 30 min
 ```
 
-`go test ./...` covers the platform-independent logic: manifest parse/cache, preset application and precedence, background selection, config round-trip, render row selection, and version compare. Windows-only paths (tray, update, wallpaper set) cannot run in CI or in a Linux dev environment and are verified manually. Release builds use `GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=$TAG"`. It is deliberately a **console** binary, not `-H windowsgui`: the GUI subsystem never blocks the calling shell, which made `--list-presets`/`--version` unusable from a prompt. `DetachConsole()` instead frees a console Windows opened just for us (Startup shortcut, Explorer) so the resident tray/watch daemon shows no console window, while a terminal the user launched from is left attached.
+`go test ./...` covers the platform-independent logic: manifest parse/cache, preset application and precedence, background selection, config round-trip, render row selection, and version compare. Windows-only paths (tray, update, wallpaper set) cannot run in CI or in a Linux dev environment and are verified manually. A release builds the **same source twice**, differing only in subsystem — the `python.exe`/`pythonw.exe` pattern:
+
+- `wallpaper-info.exe` — console subsystem. The one you type at a prompt, and the one `install.ps1` calls. A shell reads the PE subsystem field to decide whether to wait for the process and wire up its stdout, so this **must** stay console or `--version`/`--list-presets` silently return nothing (measured: 0 captures in 10 runs of a GUI-subsystem build).
+- `wallpaper-infow.exe` — `-H windowsgui`. Everything launched unattended points here: both `[Icons]` shortcuts and the `[Run] --tray` entry. Windows creates and shows a console for a console-subsystem exe launched from a shortcut *before any of our code runs*, so a shortcut can only be silent if its target never asks for a console. `FreeConsole` afterwards just hides a window the user has already seen, with whatever was printed still in it — which is how "preset not in manifest" ended up on screen at logon.
+
+`DetachConsole()` still exists and still runs for the resident modes, covering someone launching `wallpaper-info.exe --tray` from Explorer by hand.
 
 ## Inputs / Outputs
 
@@ -68,6 +73,8 @@ Tag `v*` → `.github/workflows/release.yml` runs the tests, builds `wallpaper-i
 - Manifest/preset/background/update failures must always degrade (cache → local config), never fail a render
 - In `presets/*.toml`, every top-level key (`backgrounds`, `background_set`, …) must stay **above** the `[layout]` header — a key written after a table header belongs to that table, which once silently published presets with no backgrounds at all. `TestRealPresetsParse` guards this
 - **Never add `AppMutex` to `installer/wallpaper-info.iss`.** Inno checks it before `PrepareToInstall` and can only answer with a message box, so under `/VERYSILENT /SUPPRESSMSGBOXES` it defaults to Cancel: Setup exits 1 having installed nothing, turning every silent upgrade into a no-op. `PrepareToInstall`'s `taskkill` closes the running tray unattended instead
+- **`PrepareToInstall` must `taskkill` both exe names.** The resident tray is `wallpaper-infow.exe`; killing only `wallpaper-info.exe` leaves it holding `{app}` open, and every upgrade silently installs nothing — the same failure mode as the `AppMutex` trap above, from the other direction
+- **Update checks must read the published catalogue, never `app.Fetcher`.** A USB-provisioned machine's fetcher points at a local copy of the stick's catalogue, whose `latest.version` is frozen at whatever the stick was built with. Checking it would mean the machines provisioned from a stick are precisely the ones that never update again. `CheckAndUpdate` builds its own fetcher on `DefaultManifestURL`
 - `SetWallpaper` alternates between `wallpaper.png` and `wallpaper-alt.png`, always writing the slot that is *not* currently set. Windows keeps the current wallpaper memory-mapped and rewriting that exact path fails with "a file with a user-mapped section open". `OurRenders()` lists both, and `baseCandidate` must reject both — guarding only one composites the panel onto its own render every other refresh
 - `ScreenWidth()` calls `SetProcessDPIAware` first. Without it a scaled display reports virtualised pixels (2560x1440 at 125% reads as 2048x1152) and the nearest-resolution rule picks the wrong background
 - Font *family* lookup must try the de-spaced name **with** a weight suffix: Google ships "Open Sans" as `OpenSans-Regular.ttf`. Miss that pairing and the render silently falls back to the 7x13 bitmap face — a tiny monospace panel. `TestResolveFontSpecFindsGoogleStyleFilenames` guards this
