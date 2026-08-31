@@ -70,7 +70,7 @@ Name: "{userstartup}\phew-blue wallpaper-info"; Filename: "{app}\{#MyAppExeNameW
 
 [Run]
 ; Apply the chosen preset and paint the wallpaper immediately...
-Filename: "{app}\{#MyAppExeName}"; Parameters: "--preset {code:GetPreset}{code:GetManifestArg}"; Flags: runhidden waituntilterminated
+Filename: "{app}\{#MyAppExeName}"; Parameters: "{code:GetPresetArg}{code:GetManifestArg}"; Flags: runhidden waituntilterminated
 ; ...then leave the tray running (unticked by default in silent installs).
 Filename: "{app}\{#MyAppExeNameW}"; Parameters: "--tray"; Flags: runhidden nowait postinstall; Description: "Start wallpaper-info now"
 
@@ -123,15 +123,66 @@ begin
     Result := ' --manifest "' + M + '"';
 end;
 
+// The preset this machine is already configured with, or '' if it has none. Read as text:
+// the config is TOML carrying a single `preset = "<id>"` line, and a parser for one value
+// would be more code than the scan. Both the current location and the pre-"Phew Blue"
+// one are checked, because an upgraded install keeps its original directory.
+function ConfiguredPreset(): string;
+var
+  Paths: array[0..1] of string;
+  S: AnsiString;
+  I, J: Integer;
+begin
+  Result := '';
+  Paths[0] := ExpandConstant('{userappdata}') + '\Phew Blue\wallpaper-info\config.toml';
+  Paths[1] := ExpandConstant('{userappdata}') + '\wallpaper-info\config.toml';
+  for I := 0 to 1 do
+  begin
+    if FileExists(Paths[I]) and LoadStringFromFile(Paths[I], S) then
+    begin
+      J := Pos('preset = "', S);
+      if J > 0 then
+      begin
+        J := J + 10;
+        while (J <= Length(S)) and (S[J] <> '"') do
+        begin
+          Result := Result + S[J];
+          J := J + 1;
+        end;
+        if Result <> '' then
+          Exit;
+      end;
+    end;
+  end;
+end;
+
+// The --preset argument for the post-install render, or '' to leave the machine's own
+// preset alone.
+//
 // /PRESET=<id> supports unattended installs from provisioning; the wizard page is the
 // interactive equivalent. Keep these ids in sync with presets/*.toml.
-function GetPreset(Param: string): string;
+//
+// The third case is the one that matters: a silent install with no /PRESET is what every
+// self-update looks like. This used to fall through to the default and re-render as
+// phew-blue, so a machine provisioned with a stick-only preset silently lost it the first
+// time it updated itself. With a preset already in the config there is nothing to choose,
+// so the render is left to use what is saved.
+function GetPresetArg(Param: string): string;
+var
+  P: string;
 begin
-  Result := ExpandConstant('{param:PRESET|}');
-  if Result <> '' then
-    Exit;
-  if PresetPage <> nil then
-    Result := PresetPage.CheckListBox.Items[PresetPage.SelectedValueIndex]
-  else
-    Result := 'phew-blue';
+  P := ExpandConstant('{param:PRESET|}');
+  if P = '' then
+  begin
+    if (not WizardSilent) and (PresetPage <> nil) then
+      P := PresetPage.CheckListBox.Items[PresetPage.SelectedValueIndex]
+    else if ConfiguredPreset() <> '' then
+    begin
+      Result := '';
+      Exit;
+    end
+    else
+      P := 'phew-blue';
+  end;
+  Result := ' --preset ' + P;
 end;

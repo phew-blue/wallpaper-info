@@ -37,19 +37,17 @@ func DefaultConfig() Config {
 // else ~/.config/wallpaper-info/config.toml. Roaming rather than local, so a
 // user's chosen look follows them between machines.
 //
-// A config written before the Phew Blue folder existed sits one level up; it is
-// still honoured, so an upgrade does not silently reset someone's wallpaper.
+// A config written before the Phew Blue folder existed sits one level up and is
+// preferred when present, matching DataDir: an upgraded machine keeps its whole
+// layout in one place rather than splitting config into the new tree while its
+// data stays in the old one. Fresh installs, having neither, get the new layout.
 func DefaultConfigPath() string {
 	if runtime.GOOS == "windows" {
 		if ad := os.Getenv("APPDATA"); ad != "" {
-			newPath := filepath.Join(ad, vendorDir, appDir, "config.toml")
-			if _, err := os.Stat(newPath); err == nil {
-				return newPath
-			}
 			if old := filepath.Join(ad, appDir, "config.toml"); fileExists(old) {
 				return old
 			}
-			return newPath
+			return filepath.Join(ad, vendorDir, appDir, "config.toml")
 		}
 	}
 	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
