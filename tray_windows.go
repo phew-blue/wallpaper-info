@@ -10,10 +10,45 @@ import (
 	"time"
 
 	"github.com/getlantern/systray"
+	"golang.org/x/sys/windows/registry"
 )
 
+// Two icons, because the tray takes one and cannot follow the Windows theme by
+// itself. The white glyph disappears on a light taskbar and the blue one is lost
+// on a dark taskbar, so the set is chosen once at startup from
+// SystemUsesLightTheme. The mark stays brand blue in both.
+
 //go:embed assets/wallpaper-info.ico
-var trayIcon []byte
+var trayIconDark []byte
+
+//go:embed assets/wallpaper-info-light.ico
+var trayIconLight []byte
+
+// trayIcon returns the one that will read against the current taskbar.
+//
+// SystemUsesLightTheme governs the taskbar and tray; AppsUseLightTheme governs
+// application chrome and is a separate setting a user can set independently, so
+// reading that one gives the right answer on most machines and the wrong one on
+// anybody who mixes them. A missing key means dark, which is the Windows 11
+// default.
+//
+// A theme changed after startup is not followed: Windows sends no usable
+// notification to a systray-only process, and the tray already has a refresh
+// loop that has no business polling the registry. Restarting picks it up.
+func trayIcon() []byte {
+	k, err := registry.OpenKey(registry.CURRENT_USER,
+		`SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize`,
+		registry.QUERY_VALUE)
+	if err != nil {
+		return trayIconDark
+	}
+	defer k.Close()
+
+	if v, _, err := k.GetIntegerValue("SystemUsesLightTheme"); err == nil && v == 1 {
+		return trayIconLight
+	}
+	return trayIconDark
+}
 
 // RunTray shows the tray icon and blocks until the user quits. systray.Run owns the thread,
 // so everything interactive happens in onTrayReady's goroutines.
@@ -23,7 +58,7 @@ func RunTray(app *App) error {
 }
 
 func onTrayReady(app *App) {
-	systray.SetIcon(trayIcon)
+	systray.SetIcon(trayIcon())
 	systray.SetTitle("wallpaper-info")
 	systray.SetTooltip("wallpaper-info " + version)
 
